@@ -55,7 +55,7 @@ async function InviteContent({ params }: { params: PageProps<"/convite/[token]">
       <div className="mt-6">
         {user?.role === "PATIENT" ? (
           <>
-            <p className="mb-3 text-sm text-slate-500">Conectado como {user.email}.</p>
+            <p className="mb-3 text-sm text-slate-500 [overflow-wrap:anywhere]">Conectado como {user.email}.</p>
             <AcceptInviteButton token={token} />
           </>
         ) : user?.role === "NUTRITIONIST" ? (

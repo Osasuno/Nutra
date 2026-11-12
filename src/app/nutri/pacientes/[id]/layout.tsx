@@ -54,9 +54,10 @@ async function PatientHeader({ params }: { params: LayoutProps<"/nutri/pacientes
             <span>
               {age !== null ? `${age} anos` : "Idade não informada"} · {sexLabel(patient.sex)}
             </span>
+            {/* overflow-wrap: anywhere deixa o e-mail longo quebrar dentro da linha flexível. */}
             {patient.email ? (
-              <a href={`mailto:${patient.email}`} className="inline-flex items-center gap-1 hover:text-emerald-700">
-                <Mail className="h-3.5 w-3.5" /> {patient.email}
+              <a href={`mailto:${patient.email}`} className="inline-flex min-w-0 max-w-full items-center gap-1 hover:text-emerald-700">
+                <Mail className="h-3.5 w-3.5 shrink-0" /> <span className="min-w-0 [overflow-wrap:anywhere]">{patient.email}</span>
               </a>
             ) : null}
             {patient.phone ? (
@@ -70,9 +71,13 @@ async function PatientHeader({ params }: { params: LayoutProps<"/nutri/pacientes
               </a>
             ) : null}
             {next ? (
-              <Link href="/nutri/agenda" className="inline-flex items-center gap-1 hover:text-emerald-700">
-                <CalendarDays className="h-3.5 w-3.5" /> Próxima consulta: {shortWhen(next.startsAt)} ({next.mode === "ONLINE" ? "online" : "presencial"})
-                {next.status === "REQUESTED" ? <span className="font-medium text-amber-700"> · aguardando confirmação</span> : null}
+              <Link href="/nutri/agenda" className="inline-flex min-w-0 items-start gap-1 hover:text-emerald-700">
+                <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {/* Um só bloco de texto: no celular a linha quebra normalmente, sem virar duas colunas. */}
+                <span>
+                  Próxima consulta: {shortWhen(next.startsAt)} ({next.mode === "ONLINE" ? "online" : "presencial"})
+                  {next.status === "REQUESTED" ? <span className="font-medium text-amber-700"> · aguardando confirmação</span> : null}
+                </span>
               </Link>
             ) : null}
           </div>

@@ -21,6 +21,8 @@ html {
 body {
   background: #f8fafc;
   color: #0f172a;
+  /* Texto do usuário sem espaços (e-mail, link colado) quebra em vez de estourar a tela. */
+  overflow-wrap: break-word;
 }
 
 /* Inputs numéricos sem setas (melhor para digitar medidas). */

@@ -52,9 +52,9 @@ async function UserBadge() {
   if (!user) return null;
   return (
     <div className="flex items-center gap-3">
-      <div className="hidden text-right sm:block">
-        <p className="text-sm font-medium text-slate-900">{user.name}</p>
-        <p className="text-xs text-slate-500">{user.email}</p>
+      <div className="hidden min-w-0 max-w-64 text-right sm:block">
+        <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
+        <p className="truncate text-xs text-slate-500">{user.email}</p>
       </div>
       <Avatar name={user.name} size="sm" />
       <LogoutButton />
