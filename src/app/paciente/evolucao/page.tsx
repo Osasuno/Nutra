@@ -35,8 +35,9 @@ async function Content() {
         <EmptyState icon={<ChartLine className="h-8 w-8" />} title="Nenhuma avaliação ainda" description="Suas medidas aparecem aqui depois da consulta." />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
             <Stat
+              className="col-span-2 sm:col-span-1"
               label="Peso atual"
               value={`${fmt(last.weight)} kg`}
               sub={first && first.id !== last.id ? `${last.weight - first.weight <= 0 ? "▼" : "▲"} ${fmt(Math.abs(last.weight - first.weight))} kg desde ${fmtDate(first.date)}` : fmtDate(last.date)}
@@ -63,7 +64,29 @@ async function Content() {
           ) : null}
           <Card>
             <CardHeader title="Avaliações" />
-            <div className="overflow-x-auto">
+            {/* Celular: um bloco por avaliação. */}
+            <ul className="divide-y divide-slate-100 sm:hidden">
+              {[...assessments].reverse().map((a) => {
+                const waist = parseNumbers(a.circumferences).waist;
+                return (
+                  <li key={a.id} className="px-4 py-3 text-sm">
+                    <p className="font-medium text-slate-900">{fmtDate(a.date)}</p>
+                    <p className="mt-0.5 text-slate-600">
+                      {[
+                        `${fmt(a.weight)} kg`,
+                        a.bmi ? `IMC ${fmt(a.bmi)}` : null,
+                        a.bodyFatPercent ? `${fmt(a.bodyFatPercent)}% de gordura` : null,
+                        a.leanMass ? `massa magra ${fmt(a.leanMass)} kg` : null,
+                        waist ? `cintura ${fmt(waist)} cm` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="relative hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[560px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <tr>

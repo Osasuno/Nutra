@@ -32,8 +32,8 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
-          <div className="flex items-center gap-2 lg:hidden">
-            <MobileNav items={items} />
+          <div className="flex min-w-0 items-center gap-2 lg:hidden">
+            <MobileNav items={items} homeHref={homeHref} />
             <Logo href={homeHref} />
           </div>
           <div className="hidden lg:block" />

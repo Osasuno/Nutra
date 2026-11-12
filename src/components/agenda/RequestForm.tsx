@@ -47,19 +47,26 @@ export function RequestForm({ modes, address }: { modes: AppointmentMode[]; addr
       <CardBody className="space-y-5">
         <div>
           <p className="mb-1.5 text-sm font-medium text-slate-700">Modalidade</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             {modes.map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
+                aria-pressed={mode === m}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ring-1 transition",
+                  "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium ring-1 transition sm:py-2",
                   mode === m ? "bg-emerald-600 text-white ring-emerald-600" : "bg-white text-slate-700 ring-slate-200 hover:ring-emerald-300",
                 )}
               >
                 {m === "ONLINE" ? <Video className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
-                {m === "ONLINE" ? "Online (videochamada)" : "Presencial"}
+                {m === "ONLINE" ? (
+                  <span>
+                    Online<span className="hidden sm:inline"> (videochamada)</span>
+                  </span>
+                ) : (
+                  "Presencial"
+                )}
               </button>
             ))}
           </div>
@@ -84,8 +91,9 @@ export function RequestForm({ modes, address }: { modes: AppointmentMode[]; addr
         </Field>
 
         {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
-        <Button onClick={submit} disabled={!slot || busy}>
-          <CalendarPlus className="h-4 w-4" />
+        {/* O rótulo com a data é longo: no celular o botão ocupa a largura e quebra a linha. */}
+        <Button onClick={submit} disabled={!slot || busy} className="h-auto min-h-10 w-full whitespace-normal py-2 sm:w-auto">
+          <CalendarPlus className="h-4 w-4 shrink-0" />
           {busy ? "Enviando..." : slot ? `Solicitar ${longWhen(slot.startsAt)}` : "Escolha um horário"}
         </Button>
       </CardBody>

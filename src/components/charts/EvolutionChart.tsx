@@ -34,15 +34,26 @@ export function EvolutionChart({ points, height = 260 }: { points: EvolutionPoin
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer>
-        <LineChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+        {/* Eixos estreitos e sem unidade nos números (a unidade está na legenda): no celular
+            sobra mais largura para as linhas. */}
+        <LineChart data={data} margin={{ top: 10, right: 4, left: 4, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#64748b" }} />
-          <YAxis yAxisId="kg" tick={{ fontSize: 12, fill: "#64748b" }} domain={["auto", "auto"]} unit=" kg" width={70} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} />
+          <YAxis yAxisId="kg" tick={{ fontSize: 11, fill: "#64748b" }} domain={["auto", "auto"]} width={36} />
           {hasFat ? (
-            <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} domain={["auto", "auto"]} unit="%" width={50} />
+            <YAxis
+              yAxisId="pct"
+              orientation="right"
+              tick={{ fontSize: 11, fill: "#64748b" }}
+              domain={["auto", "auto"]}
+              tickFormatter={(v: number) => `${v}%`}
+              width={40}
+            />
           ) : null}
           {/* Cintura em cm tem escala própria (eixo oculto) para não se misturar com kg. */}
-          {hasWaist ? <YAxis yAxisId="cm" hide domain={["auto", "auto"]} /> : null}
+          {/* width 0: mesmo oculto, o eixo entra no empilhamento dos eixos da esquerda e, com a
+              largura padrão (60), empurrava o eixo de kg para fora do gráfico. */}
+          {hasWaist ? <YAxis yAxisId="cm" hide width={0} domain={["auto", "auto"]} /> : null}
           <Tooltip formatter={(value) => num(value)} labelStyle={{ color: "#0f172a" }} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line yAxisId="kg" type="monotone" dataKey="weight" name="Peso (kg)" stroke="#059669" strokeWidth={2} dot={{ r: 3 }} connectNulls />

@@ -27,6 +27,15 @@ const CHIP: Record<AppointmentDTO["status"], string> = {
   CANCELLED: "bg-slate-100 text-slate-500 line-through ring-slate-200",
 };
 
+// No celular a célula do mês é estreita demais para o horário: cada consulta vira um ponto.
+const DOT: Record<AppointmentDTO["status"], string> = {
+  REQUESTED: "bg-amber-400",
+  CONFIRMED: "bg-emerald-500",
+  COMPLETED: "bg-sky-400",
+  NO_SHOW: "bg-red-400",
+  CANCELLED: "bg-slate-300",
+};
+
 export function AgendaView({
   monthKey,
   todayKey,
@@ -114,7 +123,7 @@ export function AgendaView({
                 onClick={() => setSelected(day)}
                 onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelected(day)}
                 className={cn(
-                  "min-h-24 cursor-pointer border-b border-r border-slate-100 p-1.5 text-left transition hover:bg-emerald-50/40 sm:min-h-28",
+                  "relative min-h-14 cursor-pointer border-b border-r border-slate-100 p-1 text-left transition hover:bg-emerald-50/40 sm:min-h-28 sm:p-1.5",
                   !inMonth && "bg-slate-50/70 text-slate-400",
                   selected === day && "bg-emerald-50 ring-2 ring-inset ring-emerald-400",
                 )}
@@ -127,7 +136,20 @@ export function AgendaView({
                 >
                   {Number(day.slice(8))}
                 </span>
-                <div className="mt-1 space-y-1">
+                {list.length ? (
+                  <>
+                    <span className="mt-1 flex flex-wrap items-center gap-1 px-1 sm:hidden" aria-hidden>
+                      {list.slice(0, 4).map((a) => (
+                        <span key={a.id} className={cn("h-2 w-2 rounded-full", DOT[a.status])} />
+                      ))}
+                      {list.length > 4 ? <span className="text-[10px] leading-none text-slate-500">+{list.length - 4}</span> : null}
+                    </span>
+                    <span className="sr-only sm:hidden">
+                      {list.length} {list.length === 1 ? "consulta" : "consultas"}
+                    </span>
+                  </>
+                ) : null}
+                <div className="mt-1 hidden space-y-1 sm:block">
                   {list.slice(0, 3).map((a) => (
                     <button
                       key={a.id}
@@ -153,16 +175,16 @@ export function AgendaView({
         </div>
         <div className="flex flex-wrap gap-3 px-4 py-3 text-xs text-slate-500">
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-amber-200" /> Aguardando confirmação
+            <span className={cn("h-2.5 w-2.5 rounded-full", DOT.REQUESTED)} /> Aguardando confirmação
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-emerald-200" /> Confirmada
+            <span className={cn("h-2.5 w-2.5 rounded-full", DOT.CONFIRMED)} /> Confirmada
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-sky-100" /> Realizada
+            <span className={cn("h-2.5 w-2.5 rounded-full", DOT.COMPLETED)} /> Realizada
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-red-100" /> Não compareceu
+            <span className={cn("h-2.5 w-2.5 rounded-full", DOT.NO_SHOW)} /> Não compareceu
           </span>
         </div>
       </Card>

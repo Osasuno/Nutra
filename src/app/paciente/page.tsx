@@ -101,8 +101,9 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
           <h1 className="text-2xl font-semibold text-slate-900">Olá, {firstName}!</h1>
           <p className="text-sm text-slate-500">Seu acompanhamento com {nutri.name}.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <ButtonLink href="/paciente/diario">
+        {/* Celular: ação principal na largura toda e as outras duas lado a lado. */}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <ButtonLink href="/paciente/diario" className="col-span-2">
             <Camera className="h-4 w-4" /> Registrar refeição
           </ButtonLink>
           <ButtonLink href="/paciente/consultas" variant="outline">
@@ -125,7 +126,7 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <Stat
           label="Último peso"
           value={lastAssessment ? `${fmt(lastAssessment.weight)} kg` : "—"}
@@ -140,6 +141,7 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
           sub={<Link href="/paciente/anamnese" className="text-emerald-700 hover:underline">Abrir</Link>}
           icon={<ClipboardList className="h-5 w-5" />}
           tone="yellow"
+          className="col-span-2 sm:col-span-1"
         />
       </div>
 

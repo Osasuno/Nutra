@@ -66,7 +66,7 @@ export function MeasurePicker({
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="h-8 pl-8 text-xs"
+          className="h-10 pl-8 sm:h-8 sm:text-xs"
           placeholder="Ex.: arroz, feijão, pão francês"
           aria-label="Buscar medida caseira"
         />

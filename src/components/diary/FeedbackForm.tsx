@@ -69,7 +69,6 @@ export function FeedbackForm({
         rows={2}
         maxLength={3000}
         placeholder="Escreva um feedback para o paciente..."
-        className="text-sm"
       />
       <Button type="submit" size="sm" disabled={saving || (!feedback.trim() && !rating)}>
         <Send className="h-3.5 w-3.5" /> {saving ? "Enviando..." : "Enviar feedback"}

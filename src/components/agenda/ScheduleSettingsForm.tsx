@@ -64,21 +64,21 @@ export function ScheduleSettingsForm({ initial }: { initial: ScheduleSettings })
                           type="time"
                           value={r.start}
                           onChange={(e) => setDay(day, ranges.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))}
-                          className="w-32"
+                          className="min-w-0 flex-1 sm:w-32 sm:flex-none"
                           aria-label={`${label}: início`}
                         />
-                        <span className="text-sm text-slate-400">até</span>
+                        <span className="shrink-0 text-sm text-slate-400">até</span>
                         <Input
                           type="time"
                           value={r.end}
                           onChange={(e) => setDay(day, ranges.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))}
-                          className="w-32"
+                          className="min-w-0 flex-1 sm:w-32 sm:flex-none"
                           aria-label={`${label}: fim`}
                         />
                         <button
                           type="button"
                           onClick={() => setDay(day, ranges.filter((_, j) => j !== i))}
-                          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          className="shrink-0 rounded-lg p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-2"
                           aria-label="Remover faixa"
                         >
                           <Trash2 className="h-4 w-4" />

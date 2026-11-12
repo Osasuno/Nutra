@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Plano alimentar" };
 
 export default function PrintPlanPage(props: PageProps<"/imprimir/plano/[planId]">) {
   return (
-    <div className="mx-auto w-full max-w-3xl bg-white px-6 py-8 print:px-0 print:py-0">
+    <div className="mx-auto w-full max-w-3xl bg-white px-4 py-6 sm:px-6 sm:py-8 print:px-0 print:py-0">
       <Suspense fallback={<Skeleton className="h-96 w-full" />}>
         <PrintContent params={props.params} />
       </Suspense>
@@ -47,8 +47,8 @@ async function PrintContent({ params }: { params: PageProps<"/imprimir/plano/[pl
 
   return (
     <>
-      <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
+      <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between print:flex-row">
+        <div className="min-w-0">
           <Logo className="no-print mb-3" href={user.role === "NUTRITIONIST" ? "/nutri" : "/paciente"} />
           <h1 className="text-2xl font-semibold text-slate-900">{plan.title}</h1>
           <p className="text-sm text-slate-600">Paciente: {plan.patient.name}</p>

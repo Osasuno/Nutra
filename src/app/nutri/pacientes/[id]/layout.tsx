@@ -40,7 +40,7 @@ async function PatientHeader({ params }: { params: LayoutProps<"/nutri/pacientes
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="flex items-start gap-3 sm:items-center sm:gap-4">
         <Avatar name={patient.name} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

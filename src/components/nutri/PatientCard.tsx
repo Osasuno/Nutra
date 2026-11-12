@@ -89,12 +89,12 @@ export function PatientCard({ patient }: { patient: PatientCardData }) {
 
       <ul className="space-y-1.5 p-4 text-xs text-slate-600">
         <li className="flex items-center gap-2">
-          <Camera className="h-3.5 w-3.5 text-slate-400" />
+          <Camera className="h-3.5 w-3.5 shrink-0 text-slate-400" />
           Diário: {patient.logs7d} registro(s) em 7 dias
           {patient.lastLogAt ? <span className="text-slate-400">· último {fmtRelative(patient.lastLogAt)}</span> : null}
         </li>
         <li className="flex items-center gap-2">
-          <MessageCircle className="h-3.5 w-3.5 text-slate-400" />
+          <MessageCircle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
           {patient.unreadMessages > 0 ? (
             <span className="font-medium text-emerald-700">{patient.unreadMessages} mensagem(ns) não lida(s)</span>
           ) : patient.lastMessageAt ? (
@@ -104,7 +104,7 @@ export function PatientCard({ patient }: { patient: PatientCardData }) {
           )}
         </li>
         <li className="flex items-center gap-2">
-          <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-slate-400" />
           {patient.nextAppointment ? (
             <span>
               Consulta {patient.nextAppointmentMode === "ONLINE" ? "online" : "presencial"}: {shortWhen(patient.nextAppointment)}
@@ -117,7 +117,7 @@ export function PatientCard({ patient }: { patient: PatientCardData }) {
           )}
         </li>
         <li className="flex items-center gap-2">
-          <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
+          <ClipboardList className="h-3.5 w-3.5 shrink-0 text-slate-400" />
           Anamnese:{" "}
           {patient.anamnesisPercent === null ? (
             <span className="text-slate-400">não iniciada</span>
@@ -131,9 +131,9 @@ export function PatientCard({ patient }: { patient: PatientCardData }) {
           )}
         </li>
         <li className="flex items-center gap-2">
-          <UtensilsCrossed className="h-3.5 w-3.5 text-slate-400" />
+          <UtensilsCrossed className="h-3.5 w-3.5 shrink-0 text-slate-400" />
           {patient.activePlan ? (
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               Plano ativo: {patient.activePlan.title}
               {patient.activePlan.kcal ? ` (${fmt(patient.activePlan.kcal, 0)} kcal)` : ""}
             </span>

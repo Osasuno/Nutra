@@ -150,7 +150,7 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat
           label="Peso atual"
           value={last ? `${fmt(last.weight)} kg` : "—"}
@@ -293,7 +293,7 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
               </Link>
             }
           />
-          <CardBody>
+          <CardBody className="@container">
             {plan && totals && split ? (
               <div className="space-y-4">
                 <div>
@@ -302,7 +302,8 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
                     {plan.meals.length} refeições · atualizado {fmtRelative(plan.updatedAt)}
                   </p>
                 </div>
-                <div className="grid grid-cols-4 gap-2 text-center text-sm">
+                {/* 4 colunas só quando o card tem largura para "Carboidratos" caber. */}
+                <div className="grid grid-cols-2 gap-2 text-center text-sm @md:grid-cols-4">
                   {[
                     { label: "kcal", value: fmt(totals.kcal, 0), target: plan.targetKcal },
                     { label: "Proteínas", value: `${fmt(totals.protein, 0)} g`, sub: `${fmt(split.protein, 0)}%` },

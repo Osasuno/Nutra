@@ -29,14 +29,16 @@ function Scale({ value, onChange, label }: { value: number | null; onChange: (v:
   return (
     <div>
       <p className="mb-1.5 text-sm font-medium text-slate-700">{label}</p>
-      <div className="flex flex-wrap gap-1">
+      {/* Celular: duas fileiras iguais (0–5 e 6–10) com botões maiores para o dedo. */}
+      <div className="grid grid-cols-6 gap-1.5 sm:flex sm:flex-wrap sm:gap-1">
         {Array.from({ length: 11 }, (_, n) => (
           <button
             key={n}
             type="button"
             onClick={() => onChange(value === n ? null : n)}
+            aria-pressed={value === n}
             className={cn(
-              "h-8 w-8 rounded-md text-xs font-medium",
+              "h-10 rounded-md text-sm font-medium sm:h-8 sm:w-8 sm:text-xs",
               value === n ? "bg-emerald-600 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50",
             )}
           >
@@ -235,7 +237,7 @@ export function MealLogForm({ patientId }: { patientId: string }) {
 
           {error ? <Alert tone="red">{error}</Alert> : null}
           {success ? <Alert tone="green">Refeição registrada! Sua nutricionista vai ver no painel.</Alert> : null}
-          <Button type="submit" disabled={loading || !date}>
+          <Button type="submit" disabled={loading || !date} className="w-full sm:w-auto">
             <Send className="h-4 w-4" /> {loading ? "Enviando..." : "Registrar"}
           </Button>
         </form>

@@ -71,7 +71,7 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4", className)}>
+    <div className={cn("flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5", className)}>
       <div className="flex min-w-0 items-start gap-3">
         {icon ? <div className="mt-0.5 text-emerald-600">{icon}</div> : null}
         <div className="min-w-0">
@@ -85,7 +85,7 @@ export function CardHeader({
 }
 
 export function CardBody({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("px-5 py-4", className)} {...props} />;
+  return <div className={cn("px-4 py-4 sm:px-5", className)} {...props} />;
 }
 
 type Tone = "neutral" | "green" | "yellow" | "red" | "blue" | "purple" | "good" | "warn" | "bad";
@@ -119,8 +119,9 @@ export function Badge({
   );
 }
 
+// text-base no celular: com fonte menor que 16px o iPhone dá zoom na página ao focar o campo.
 export const inputClass =
-  "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-500";
+  "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-500 sm:text-sm";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(inputClass, className)} {...props} />;
@@ -220,12 +221,14 @@ export function Stat({
   sub,
   icon,
   tone = "neutral",
+  className,
 }: {
   label: ReactNode;
   value: ReactNode;
   sub?: ReactNode;
   icon?: ReactNode;
   tone?: "neutral" | "green" | "yellow" | "red" | "blue";
+  className?: string;
 }) {
   const iconTone = {
     neutral: "bg-slate-100 text-slate-600",
@@ -234,15 +237,16 @@ export function Stat({
     red: "bg-red-100 text-red-700",
     blue: "bg-sky-100 text-sky-700",
   }[tone];
+  // No celular os cards ficam em 2 colunas: menos respiro e o ícone sai para o texto caber.
   return (
-    <Card className="p-4">
+    <Card className={cn("p-3 sm:p-4", className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
+          <p className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
           {sub ? <div className="mt-0.5 text-xs text-slate-500">{sub}</div> : null}
         </div>
-        {icon ? <div className={cn("rounded-lg p-2", iconTone)}>{icon}</div> : null}
+        {icon ? <div className={cn("hidden shrink-0 rounded-lg p-2 sm:block", iconTone)}>{icon}</div> : null}
       </div>
     </Card>
   );

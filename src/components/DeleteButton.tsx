@@ -28,8 +28,9 @@ export function DeleteButton({
       disabled={loading}
       title={label ?? "Excluir"}
       className={cn(
-        "inline-flex items-center gap-1 rounded-lg p-1.5 text-sm text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50",
-        label && "px-3 text-red-600",
+        // Área de toque maior no celular.
+        "inline-flex items-center gap-1 rounded-lg p-2.5 text-sm text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 sm:p-1.5",
+        label && "px-3 text-red-600 sm:px-3",
         className,
       )}
       onClick={async () => {

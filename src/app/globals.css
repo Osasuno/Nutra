@@ -9,6 +9,15 @@ html {
   color-scheme: light;
 }
 
+@layer base {
+  /* Grade sem colunas definidas no breakpoint atual (o empilhamento do celular): a coluna
+     não passa da largura do contêiner. Sem isso a coluna implícita (auto) cresce para caber
+     texto sem quebra (truncate) ou campos largos, e a página ganha rolagem horizontal. */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 body {
   background: #f8fafc;
   color: #0f172a;

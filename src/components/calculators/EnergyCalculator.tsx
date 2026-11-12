@@ -75,7 +75,9 @@ export function EnergyCalculator({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="space-y-6">
+      {/* Celular: "contents" solta os cards na grade para o Resultado vir logo após os dados
+          (antes da comparação entre fórmulas). No xl volta a ser a coluna da esquerda. */}
+      <div className="contents xl:block xl:space-y-6">
         <Card>
           <CardHeader title="Dados do paciente" />
           <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-3 2xl:grid-cols-5">
@@ -282,9 +284,9 @@ export function EnergyCalculator({
           </CardBody>
         </Card>
 
-        <Card>
+        <Card className="order-last xl:order-none">
           <CardHeader title="Comparação entre fórmulas" description="Mesmos dados aplicados a todas as equações." />
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>

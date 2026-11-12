@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus, Salad, X } from "lucide-react";
 import { Button, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { NUTRIENT_LABELS, type FoodResult } from "@/lib/food-types";
@@ -13,15 +13,30 @@ export function FoodExplorer() {
   const [selected, setSelected] = useState<FoodResult | null>(null);
   const [creating, setCreating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const details = useRef<HTMLDivElement>(null);
+
+  // Abaixo de lg os detalhes ficam embaixo da busca, fora da tela: rola até eles.
+  const showDetails = () => {
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      requestAnimationFrame(() => details.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <Card className="flex h-[calc(100vh-12rem)] min-h-[520px] flex-col">
+      <Card className="flex h-[calc(100dvh-12rem)] min-h-[480px] flex-col">
         <CardHeader
           title="Buscar alimentos"
           description="Valores por 100 g da parte comestível."
           action={
-            <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setCreating(true);
+                showDetails();
+              }}
+            >
               <Plus className="h-4 w-4" /> Novo alimento
             </Button>
           }
@@ -34,12 +49,14 @@ export function FoodExplorer() {
             onSelect={(f) => {
               setSelected(f);
               setCreating(false);
+              showDetails();
             }}
           />
         </CardBody>
       </Card>
 
-      <div className="space-y-6">
+      {/* scroll-mt: o cabeçalho fixo (56px) não cobre o topo ao rolar até aqui. */}
+      <div ref={details} className="scroll-mt-20 space-y-6">
         {creating ? (
           <Card>
             <CardHeader

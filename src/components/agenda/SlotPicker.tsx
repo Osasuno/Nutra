@@ -105,7 +105,9 @@ export function SlotPicker({
                   <span className="block text-sm font-semibold">
                     {dd}/{m}
                   </span>
-                  <span className="block text-[10px]">{d.slots.length ? `${d.slots.length} horário(s)` : "—"}</span>
+                  <span className="block text-[10px]">
+                    {d.slots.length ? `${d.slots.length} ${d.slots.length === 1 ? "horário" : "horários"}` : "—"}
+                  </span>
                 </button>
               );
             })}
@@ -114,14 +116,16 @@ export function SlotPicker({
           {selectedDay ? (
             <div>
               <p className="mb-2 text-sm font-medium text-slate-700">Horários disponíveis</p>
-              <div className="flex flex-wrap gap-2">
+              {/* Celular: grade de botões do mesmo tamanho, fáceis de tocar. */}
+              <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
                 {selectedDay.slots.map((slot) => (
                   <button
                     key={slot.startsAt}
                     type="button"
                     onClick={() => onChange(value?.startsAt === slot.startsAt ? null : slot)}
+                    aria-pressed={value?.startsAt === slot.startsAt}
                     className={cn(
-                      "rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition",
+                      "rounded-lg px-3 py-2 text-sm font-medium ring-1 transition sm:py-1.5",
                       value?.startsAt === slot.startsAt
                         ? "bg-emerald-600 text-white ring-emerald-600"
                         : "bg-white text-slate-700 ring-slate-200 hover:ring-emerald-400",

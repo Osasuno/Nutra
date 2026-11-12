@@ -28,11 +28,13 @@ async function Content() {
   });
   return (
     <div className="mx-auto max-w-3xl">
+      {/* Ocupa a tela abaixo do cabeçalho (56px) e do respiro do conteúdo (py-6; py-8 no desktop). */}
       <Chat
         patientId={active.id}
         currentUserId={user.id}
         otherName={active.nutritionist.name}
         initialMessages={rows.reverse().map(toChatMessage)}
+        className="h-[calc(100dvh-6.5rem)] min-h-[360px] lg:h-[calc(100dvh-7.5rem)]"
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
 import { NumberInput } from "@/components/NumberInput";
 import { Alert, Button, Card, Input, Select, Textarea } from "@/components/ui";
@@ -37,6 +37,7 @@ export function AnamnesisForm({ patientId, initialData, role, sex, updatedAt }: 
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(updatedAt);
   const [error, setError] = useState<string | null>(null);
+  const formTop = useRef<HTMLDivElement>(null);
   const ctx = useMemo(() => ({ sex, role }), [sex, role]);
 
   const sections = visibleSections(data, ctx);
@@ -71,8 +72,7 @@ export function AnamnesisForm({ patientId, initialData, role, sex, updatedAt }: 
       setLastSaved(res.updatedAt);
       setDirty(false);
       if (goNext && index < sections.length - 1) {
-        setSectionId(sections[index + 1].id);
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        goTo(sections[index + 1].id);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar.");
@@ -83,9 +83,33 @@ export function AnamnesisForm({ patientId, initialData, role, sex, updatedAt }: 
 
   const fields = visibleFields(current, data, ctx);
 
+  /** Troca de seção e leva ao início do formulário (no celular a lista de seções fica acima). */
+  function goTo(id: string) {
+    setSectionId(id);
+    requestAnimationFrame(() => formTop.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <nav className="space-y-1 lg:sticky lg:top-20 lg:self-start" aria-label="Seções da anamnese">
+    <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-6">
+      {/* Celular: seletor compacto no lugar da lista das 12 seções. */}
+      <div className="lg:hidden">
+        <label htmlFor="anamnesis-section" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Seção
+        </label>
+        <Select id="anamnesis-section" value={current.id} onChange={(e) => goTo(e.target.value)}>
+          {sections.map((s, i) => {
+            const p = sectionProgress(s, data, ctx);
+            const complete = p.total > 0 && p.filled === p.total;
+            return (
+              <option key={s.id} value={s.id}>
+                {`${i + 1}. ${s.title} (${complete ? "completa" : `${p.filled}/${p.total}`})`}
+              </option>
+            );
+          })}
+        </Select>
+      </div>
+
+      <nav className="hidden space-y-1 lg:sticky lg:top-20 lg:block lg:self-start" aria-label="Seções da anamnese">
         {sections.map((s, i) => {
           const p = sectionProgress(s, data, ctx);
           const complete = p.total > 0 && p.filled === p.total;
@@ -93,7 +117,7 @@ export function AnamnesisForm({ patientId, initialData, role, sex, updatedAt }: 
             <button
               key={s.id}
               type="button"
-              onClick={() => setSectionId(s.id)}
+              onClick={() => goTo(s.id)}
               className={cn(
                 "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
                 s.id === current.id ? "bg-emerald-50 font-medium text-emerald-800" : "text-slate-600 hover:bg-slate-100",
@@ -117,37 +141,38 @@ export function AnamnesisForm({ patientId, initialData, role, sex, updatedAt }: 
       </nav>
 
       <Card>
-        <div className="border-b border-slate-100 px-5 py-4">
+        {/* scroll-mt: o cabeçalho fixo do app (56px) não cobre o título ao rolar até aqui. */}
+        <div ref={formTop} className="scroll-mt-20 border-b border-slate-100 px-4 py-4 sm:px-5">
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
             Seção {index + 1} de {sections.length}
           </p>
           <h2 className="text-lg font-semibold text-slate-900">{current.title}</h2>
           {current.description ? <p className="text-sm text-slate-500">{current.description}</p> : null}
         </div>
-        <div className="grid gap-5 px-5 py-5 sm:grid-cols-2">
+        <div className="grid gap-5 px-4 py-5 sm:grid-cols-2 sm:px-5">
           {fields.map((field) => (
             <div key={field.id} className={cn(field.wide || isWideType(field) ? "sm:col-span-2" : "")}>
               <FieldInput field={field} value={data[field.id]} onChange={(v) => update(field.id, v)} />
             </div>
           ))}
         </div>
-        <div className="sticky bottom-0 flex flex-col gap-3 rounded-b-xl border-t border-slate-100 bg-white/95 px-5 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-0 flex flex-col gap-2 rounded-b-xl border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5">
           <p className="text-xs text-slate-500">
             {dirty ? "Alterações não salvas" : lastSaved ? `Salvo em ${fmtDateTime(lastSaved)}` : "Ainda não salvo"}
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => save(false)} disabled={saving}>
+            <Button variant="outline" onClick={() => save(false)} disabled={saving} className="flex-1 sm:flex-none">
               <Save className="h-4 w-4" /> Salvar
             </Button>
             {index < sections.length - 1 ? (
-              <Button onClick={() => save(true)} disabled={saving}>
+              <Button onClick={() => save(true)} disabled={saving} className="flex-[2] sm:flex-none">
                 Salvar e continuar <ChevronRight className="h-4 w-4" />
               </Button>
             ) : null}
           </div>
         </div>
         {error ? (
-          <div className="px-5 pb-4">
+          <div className="px-4 pb-4 sm:px-5">
             <Alert tone="red">{error}</Alert>
           </div>
         ) : null}
@@ -433,9 +458,10 @@ function FrequencyInput({ field, value, onChange }: { field: FrequencyField; val
   return (
     <div>
       <FieldLabel field={field} />
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="bg-slate-50 text-xs text-slate-500">
+      {/* Celular: cada alimento com as opções em botões que quebram linha. A partir de sm, tabela. */}
+      <div className="relative rounded-lg border border-slate-200 sm:overflow-x-auto">
+        <table className="w-full text-sm sm:min-w-[640px]">
+          <thead className="hidden bg-slate-50 text-xs text-slate-500 sm:table-header-group">
             <tr>
               <th className="px-3 py-2 text-left font-medium">Alimento / grupo</th>
               {field.options.map((o) => (
@@ -447,19 +473,22 @@ function FrequencyInput({ field, value, onChange }: { field: FrequencyField; val
           </thead>
           <tbody className="divide-y divide-slate-100">
             {field.items.map((item) => (
-              <tr key={item} className="hover:bg-slate-50/60">
-                <td className="px-3 py-2 text-slate-700">{item}</td>
+              <tr key={item} className="block px-3 py-3 hover:bg-slate-50/60 sm:table-row sm:p-0">
+                <td className="block pb-2 font-medium text-slate-700 sm:table-cell sm:px-3 sm:py-2 sm:pb-2 sm:font-normal">{item}</td>
                 {field.options.map((o) => (
-                  <td key={o} className="px-1 py-2 text-center">
-                    <input
-                      type="radio"
-                      name={`${field.id}-${item}`}
-                      checked={answers[item] === o}
-                      onChange={() => set(item, o)}
-                      onClick={() => answers[item] === o && set(item, o)}
-                      className="h-4 w-4 cursor-pointer accent-emerald-600"
-                      aria-label={`${item}: ${o}`}
-                    />
+                  <td key={o} className="mb-1.5 mr-1.5 inline-block sm:mb-0 sm:mr-0 sm:table-cell sm:px-1 sm:py-2 sm:text-center">
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 has-checked:border-emerald-500 has-checked:bg-emerald-50 has-checked:text-emerald-800 sm:border-0 sm:p-0 sm:has-checked:bg-transparent">
+                      <input
+                        type="radio"
+                        name={`${field.id}-${item}`}
+                        checked={answers[item] === o}
+                        onChange={() => set(item, o)}
+                        onClick={() => answers[item] === o && set(item, o)}
+                        className="h-4 w-4 cursor-pointer accent-emerald-600"
+                        aria-label={`${item}: ${o}`}
+                      />
+                      <span className="sm:hidden">{o}</span>
+                    </label>
                   </td>
                 ))}
               </tr>

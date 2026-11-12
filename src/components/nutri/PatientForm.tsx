@@ -98,7 +98,7 @@ export function PatientForm({
           placeholder="Ex.: emagrecimento com ganho de massa muscular"
         />
       </Field>
-      <p className="text-xs text-slate-500">As consultas são marcadas na Agenda (menu lateral) ou na visão geral do paciente.</p>
+      <p className="text-xs text-slate-500">As consultas são marcadas na Agenda ou na visão geral do paciente.</p>
       {error ? <Alert tone="red">{error}</Alert> : null}
       {saved ? <Alert tone="green">Dados salvos.</Alert> : null}
       <Button type="submit" disabled={loading}>

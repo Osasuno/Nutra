@@ -62,22 +62,22 @@ export default function Home() {
 
       <main className="flex-1">
         <section className="relative overflow-hidden bg-gradient-to-b from-emerald-50 to-slate-50">
-          <div className="mx-auto max-w-6xl px-4 py-20 text-center sm:py-28">
+          <div className="mx-auto max-w-6xl px-4 py-14 text-center sm:py-28">
             <p className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
               <ShieldCheck className="h-3.5 w-3.5" /> Prontuário nutricional seguro e organizado
             </p>
-            <h1 className="mx-auto max-w-3xl text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+            <h1 className="mx-auto max-w-3xl text-3xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
               Atendimento nutricional completo, do primeiro contato ao acompanhamento diário
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600">
+            <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 sm:text-lg">
               Nutricionistas gerenciam seus pacientes, montam planos com a tabela TACO e acompanham a
               evolução. Pacientes registram refeições, conversam com a nutri e veem seus resultados.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <ButtonLink href="/cadastro?tipo=nutri" size="lg">
+              <ButtonLink href="/cadastro?tipo=nutri" size="lg" className="w-full sm:w-auto">
                 <Stethoscope className="h-5 w-5" /> Sou nutricionista
               </ButtonLink>
-              <ButtonLink href="/cadastro?tipo=paciente" size="lg" variant="outline">
+              <ButtonLink href="/cadastro?tipo=paciente" size="lg" variant="outline" className="w-full sm:w-auto">
                 <User className="h-5 w-5" /> Sou paciente
               </ButtonLink>
             </div>

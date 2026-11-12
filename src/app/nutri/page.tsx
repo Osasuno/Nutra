@@ -55,7 +55,7 @@ async function Dashboard() {
 
   return (
     <>
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat label="Pacientes ativos" value={active.length} icon={<Users className="h-5 w-5" />} tone="green" />
         <Stat
           label="Mensagens não lidas"

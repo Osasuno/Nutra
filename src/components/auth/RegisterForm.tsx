@@ -79,8 +79,8 @@ export function RegisterForm({ defaults }: { defaults: RegisterDefaults }) {
         <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1" role="tablist">
           {(
             [
-              { id: "NUTRITIONIST", label: "Sou nutricionista", icon: Stethoscope },
-              { id: "PATIENT", label: "Sou paciente", icon: User },
+              { id: "NUTRITIONIST", label: "Nutricionista", icon: Stethoscope },
+              { id: "PATIENT", label: "Paciente", icon: User },
             ] as const
           ).map((opt) => (
             <button
@@ -94,7 +94,10 @@ export function RegisterForm({ defaults }: { defaults: RegisterDefaults }) {
                 role === opt.id ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900",
               )}
             >
-              <opt.icon className="h-4 w-4" /> {opt.label}
+              {/* No celular a aba é estreita: sem o "Sou", o rótulo não quebra em duas linhas. */}
+              <opt.icon className="h-4 w-4 shrink-0" />
+              <span className="sm:hidden">{opt.label}</span>
+              <span className="hidden sm:inline">Sou {opt.label.toLowerCase()}</span>
             </button>
           ))}
         </div>

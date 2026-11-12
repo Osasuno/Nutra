@@ -44,6 +44,11 @@ export type EditorItem = {
 
 export type EditorMeal = { key: string; name: string; time: string; notes: string; items: EditorItem[] };
 
+// Linha de alimento. Card estreito: nome e lixeira em cima, quantidade e medida, depois os
+// nutrientes. Card com 36rem ou mais (@xl): colunas, como uma tabela.
+const ITEM_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-4 @xl:grid-cols-[minmax(0,1.3fr)_4.5rem_minmax(0,1fr)_2.75rem_2.5rem_2.5rem_2.5rem_2rem] @xl:items-center @xl:gap-y-0";
+
 export type EditorPlan = {
   title: string;
   notes: string;
@@ -253,32 +258,32 @@ export function MealPlanEditor({
           return (
             <Card key={meal.key} className="print-break-inside-avoid">
               <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center">
-                <div className="flex flex-1 gap-2">
+                <div className="flex min-w-0 flex-1 gap-2">
                   <Input
                     value={meal.time}
                     type="time"
                     onChange={(e) => updateMeal(meal.key, (m) => ({ ...m, time: e.target.value }))}
-                    className="w-28"
+                    className="w-28 shrink-0"
                     aria-label="Horário"
                   />
                   <Input
                     value={meal.name}
                     list="meal-names"
                     onChange={(e) => updateMeal(meal.key, (m) => ({ ...m, name: e.target.value }))}
-                    className="font-medium"
+                    className="min-w-0 font-medium"
                     aria-label="Nome da refeição"
                     maxLength={100}
                   />
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="mr-2 text-xs text-slate-500">
+                  <span className="mr-auto text-xs text-slate-500 sm:mr-2">
                     <strong className="text-slate-800">{fmt(t.kcal, 0)} kcal</strong> · P {fmt(t.protein, 0)} · C {fmt(t.carbs, 0)} · G{" "}
                     {fmt(t.fat, 0)}
                   </span>
-                  <button type="button" onClick={() => moveMeal(index, -1)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Mover para cima">
+                  <button type="button" onClick={() => moveMeal(index, -1)} className="rounded p-2 text-slate-400 hover:bg-slate-100 sm:p-1.5" aria-label="Mover para cima">
                     <ArrowUp className="h-4 w-4" />
                   </button>
-                  <button type="button" onClick={() => moveMeal(index, 1)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Mover para baixo">
+                  <button type="button" onClick={() => moveMeal(index, 1)} className="rounded p-2 text-slate-400 hover:bg-slate-100 sm:p-1.5" aria-label="Mover para baixo">
                     <ArrowDown className="h-4 w-4" />
                   </button>
                   <button
@@ -287,7 +292,7 @@ export function MealPlanEditor({
                       if (meal.items.length && !window.confirm(`Remover a refeição "${meal.name}"?`)) return;
                       change((p) => ({ ...p, meals: p.meals.filter((m) => m.key !== meal.key) }));
                     }}
-                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    className="rounded p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1.5"
                     aria-label="Remover refeição"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -296,77 +301,89 @@ export function MealPlanEditor({
               </div>
 
               {meal.items.length ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[720px] text-sm">
-                    <thead className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-                      <tr>
-                        <th className="px-4 py-2 font-medium">Alimento</th>
-                        <th className="w-24 px-2 py-2 font-medium">Qtd (g)</th>
-                        <th className="w-48 px-2 py-2 font-medium">Medida caseira</th>
-                        <th className="px-2 py-2 text-right font-medium">kcal</th>
-                        <th className="px-2 py-2 text-right font-medium">P</th>
-                        <th className="px-2 py-2 text-right font-medium">C</th>
-                        <th className="px-2 py-2 text-right font-medium">G</th>
-                        <th className="w-8" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {meal.items.map((item) => {
-                        const it = itemTotals(item);
-                        return (
-                          <tr key={item.key} className="align-top">
-                            <td className="px-4 py-2">
-                              <p className="font-medium text-slate-800">{item.foodName}</p>
-                              <div className="mt-1 flex items-center gap-2">
-                                <Badge tone={item.foodSource === "TACO" ? "green" : item.foodSource === "CUSTOM" ? "purple" : "blue"}>
-                                  {SOURCE_LABEL[item.foodSource]}
-                                </Badge>
-                                <input
-                                  value={item.notes}
-                                  onChange={(e) => updateItem(meal.key, item.key, { notes: e.target.value })}
-                                  placeholder="Obs. / substituição"
-                                  maxLength={500}
-                                  className="w-full rounded border-0 bg-transparent px-1 text-xs text-slate-500 placeholder:text-slate-300 focus:bg-slate-50 focus:outline-none"
-                                />
-                              </div>
-                            </td>
-                            <td className="px-2 py-2">
+                // Em card estreito (celular, ou ao lado do resumo) cada alimento vira um bloco;
+                // a partir de 36rem de largura do card, as colunas de tabela.
+                <div className="@container">
+                  <div className="divide-y divide-slate-100">
+                    <div className={cn(ITEM_GRID, "hidden py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 @xl:grid")} aria-hidden>
+                      <span>Alimento</span>
+                      <span>Qtd (g)</span>
+                      <span>Medida caseira</span>
+                      <span className="text-right">kcal</span>
+                      <span className="text-right">P</span>
+                      <span className="text-right">C</span>
+                      <span className="text-right">G</span>
+                      <span />
+                    </div>
+                    {meal.items.map((item) => {
+                      const it = itemTotals(item);
+                      return (
+                        <div key={item.key} className={cn(ITEM_GRID, "py-3 text-sm @xl:py-2")}>
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-800">{item.foodName}</p>
+                            <div className="mt-1 flex items-center gap-2">
+                              <Badge tone={item.foodSource === "TACO" ? "green" : item.foodSource === "CUSTOM" ? "purple" : "blue"}>
+                                {SOURCE_LABEL[item.foodSource]}
+                              </Badge>
+                              <input
+                                value={item.notes}
+                                onChange={(e) => updateItem(meal.key, item.key, { notes: e.target.value })}
+                                placeholder="Obs. / substituição"
+                                maxLength={500}
+                                aria-label="Observação ou substituição"
+                                className="w-full min-w-0 rounded border-0 bg-transparent px-1 text-base text-slate-500 placeholder:text-slate-300 focus:bg-slate-50 focus:outline-none sm:text-xs"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateMeal(meal.key, (m) => ({ ...m, items: m.items.filter((i) => i.key !== item.key) }))}
+                            className="col-start-2 row-start-1 -mr-2 rounded p-2 text-slate-300 hover:bg-red-50 hover:text-red-600 @xl:col-start-8 @xl:mr-0 @xl:p-1"
+                            aria-label="Remover alimento"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          <div className="col-span-2 flex gap-2 @xl:contents">
+                            <label className="flex w-28 shrink-0 items-center gap-1.5 @xl:w-auto">
                               <NumberInput
                                 value={item.quantityG}
                                 onValueChange={(v) => updateItem(meal.key, item.key, { quantityG: v ?? 0 })}
-                                className="h-8"
+                                className="h-10 @xl:h-8"
                                 aria-label="Quantidade em gramas"
                               />
-                            </td>
-                            <td className="px-2 py-2">
-                              <Input
-                                value={item.householdMeasure}
-                                onChange={(e) => updateItem(meal.key, item.key, { householdMeasure: e.target.value })}
-                                className="h-8 text-xs"
-                                placeholder="Ex.: 2 colheres de sopa"
-                                maxLength={200}
-                                aria-label="Medida caseira"
-                              />
-                            </td>
-                            <td className="px-2 py-2 text-right font-medium">{fmt(it.kcal, 0)}</td>
-                            <td className="px-2 py-2 text-right">{fmt(it.protein, 1)}</td>
-                            <td className="px-2 py-2 text-right">{fmt(it.carbs, 1)}</td>
-                            <td className="px-2 py-2 text-right">{fmt(it.fat, 1)}</td>
-                            <td className="px-2 py-2">
-                              <button
-                                type="button"
-                                onClick={() => updateMeal(meal.key, (m) => ({ ...m, items: m.items.filter((i) => i.key !== item.key) }))}
-                                className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
-                                aria-label="Remover alimento"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              <span className="text-xs text-slate-500 @xl:hidden">g</span>
+                            </label>
+                            <Input
+                              value={item.householdMeasure}
+                              onChange={(e) => updateItem(meal.key, item.key, { householdMeasure: e.target.value })}
+                              className="h-10 min-w-0 flex-1 sm:text-xs @xl:h-8"
+                              placeholder="Medida caseira (ex.: 2 colheres de sopa)"
+                              maxLength={200}
+                              aria-label="Medida caseira"
+                            />
+                          </div>
+                          <p className="col-span-2 flex flex-wrap gap-x-3 text-xs text-slate-500 @xl:contents @xl:text-sm @xl:text-slate-700">
+                            <span className="font-medium text-slate-700 @xl:text-right">
+                              {fmt(it.kcal, 0)}
+                              <span className="@xl:hidden"> kcal</span>
+                            </span>
+                            <span className="@xl:text-right">
+                              <span className="@xl:hidden">P </span>
+                              {fmt(it.protein, 1)}
+                            </span>
+                            <span className="@xl:text-right">
+                              <span className="@xl:hidden">C </span>
+                              {fmt(it.carbs, 1)}
+                            </span>
+                            <span className="@xl:text-right">
+                              <span className="@xl:hidden">G </span>
+                              {fmt(it.fat, 1)}
+                            </span>
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : null}
 
@@ -380,7 +397,6 @@ export function MealPlanEditor({
                   rows={2}
                   placeholder="Orientações e opções de substituição para esta refeição"
                   maxLength={3000}
-                  className="text-sm"
                 />
               </div>
             </Card>
@@ -453,7 +469,7 @@ export function MealPlanEditor({
                 <NumberInput
                   value={plan[key]}
                   onValueChange={(v) => change((p) => ({ ...p, [key]: v }))}
-                  className="mt-1 h-8"
+                  className="mt-1 h-10 sm:h-8"
                 />
               </label>
             ))}

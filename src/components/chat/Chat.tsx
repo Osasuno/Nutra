@@ -15,24 +15,35 @@ const dayLabel = (iso: string) =>
 const timeLabel = (iso: string) =>
   new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 
+/** Altura do campo de mensagem acompanha o texto, até 160px. */
+function fitHeight(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+}
+
 export function Chat({
   patientId,
   currentUserId,
   otherName,
   initialMessages,
   disabledReason,
+  className,
 }: {
   patientId: string;
   currentUserId: string;
   otherName: string;
   initialMessages: ChatMessage[];
   disabledReason?: string | null;
+  /** Altura da caixa (padrão: tela menos o cabeçalho do prontuário). */
+  className?: string;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const lastAt = useRef<string | null>(initialMessages.at(-1)?.createdAt ?? null);
   const stickToBottom = useRef(true);
 
@@ -83,6 +94,7 @@ export function Chat({
       stickToBottom.current = true;
       merge([data.message]);
       setText("");
+      requestAnimationFrame(() => fitHeight(input.current));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível enviar.");
     } finally {
@@ -91,7 +103,13 @@ export function Chat({
   }
 
   return (
-    <div className="flex h-[calc(100vh-16rem)] min-h-[420px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    // dvh: no celular a altura acompanha a barra do navegador (100vh fica maior que a área visível).
+    <div
+      className={cn(
+        "flex h-[calc(100dvh-16rem)] min-h-[420px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm",
+        className,
+      )}
+    >
       <div className="border-b border-slate-100 px-4 py-3">
         <p className="font-medium text-slate-900">{otherName}</p>
         <p className="text-xs text-slate-500">As mensagens são atualizadas automaticamente.</p>
@@ -147,25 +165,37 @@ export function Chat({
             }}
           >
             <Textarea
+              ref={input}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                fitHeight(e.currentTarget);
+              }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                // Com teclado físico, Enter envia. Na tela de toque, Enter quebra a linha e o botão envia.
+                const touch = window.matchMedia("(pointer: coarse)").matches;
+                if (e.key === "Enter" && !e.shiftKey && !touch && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   send();
                 }
               }}
               rows={1}
               maxLength={4000}
-              placeholder="Escreva uma mensagem (Enter envia, Shift+Enter quebra linha)"
+              enterKeyHint="enter"
+              placeholder="Escreva uma mensagem"
               className="max-h-40 min-h-10 resize-none"
               aria-label="Mensagem"
             />
-            <Button type="submit" disabled={sending || !text.trim()} aria-label="Enviar">
+            <Button type="submit" disabled={sending || !text.trim()} aria-label="Enviar" className="shrink-0">
               <Send className="h-4 w-4" />
             </Button>
           </form>
         )}
+        {!disabledReason ? (
+          <p className="mt-1.5 hidden text-[11px] text-slate-400 [@media(pointer:fine)]:block">
+            Enter envia · Shift+Enter quebra a linha
+          </p>
+        ) : null}
         {error ? (
           <Alert tone="red" className="mt-2">
             {error}
