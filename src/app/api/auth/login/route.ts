@@ -3,7 +3,7 @@ import { ApiError, readJson, route } from "@/lib/api";
 import { createSession } from "@/lib/session";
 import { verifyPassword } from "@/lib/password";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { homeFor, isRole } from "@/lib/roles";
+import { isRole, safeNextPath } from "@/lib/roles";
 import { z } from "@/lib/validation";
 
 const schema = z.object({
@@ -11,14 +11,6 @@ const schema = z.object({
   password: z.string().max(200),
   next: z.string().max(500).nullish(),
 });
-
-/** Só aceita caminhos internos para evitar redirecionamento aberto. */
-function safeNext(next: string | null | undefined, role: "NUTRITIONIST" | "PATIENT") {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return homeFor(role);
-  if (next.startsWith("/nutri") && role !== "NUTRITIONIST") return homeFor(role);
-  if (next.startsWith("/paciente") && role !== "PATIENT") return homeFor(role);
-  return next;
-}
 
 export const POST = route(async (request: Request) => {
   const { email, password, next } = await readJson(request, schema);
@@ -37,5 +29,5 @@ export const POST = route(async (request: Request) => {
   if (!user || !valid || !isRole(user.role)) throw new ApiError(401, "E-mail ou senha incorretos.");
 
   await createSession({ userId: user.id, role: user.role });
-  return Response.json({ redirect: safeNext(next, user.role) });
+  return Response.json({ redirect: safeNextPath(next, user.role) });
 });

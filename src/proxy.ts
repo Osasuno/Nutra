@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { decrypt, SESSION_COOKIE } from "@/lib/session";
-import { homeFor } from "@/lib/roles";
+import { homeFor, safeNextPath } from "@/lib/roles";
 
 // Verificações otimistas (apenas o cookie). A autorização real acontece na DAL
 // e em cada rota /api, junto aos dados.
@@ -52,8 +52,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthPage && session) {
-    const next = request.nextUrl.searchParams.get("next");
-    const target = next && next.startsWith("/") && !next.startsWith("//") ? next : homeFor(session.role);
+    const target = safeNextPath(request.nextUrl.searchParams.get("next"), session.role);
     return NextResponse.redirect(new URL(target, request.url));
   }
 
@@ -61,5 +60,16 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico)$).*)"],
+  matcher: [
+    // Prefetch de <Link> fica de fora. O fetch seguiria um redirect daqui e pediria à
+    // página de destino um segmento que ela não tem (404 no console). O Next esconde
+    // esse cabeçalho do proxy, então o filtro precisa ficar no matcher. A navegação de
+    // verdade (clique) passa por aqui, e os dados continuam protegidos na DAL.
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico)$).*)",
+      missing: [{ type: "header", key: "next-router-prefetch" }],
+    },
+    // As APIs passam sempre (proteção CSRF), com ou sem esse cabeçalho.
+    { source: "/api/:path*" },
+  ],
 };
