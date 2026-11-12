@@ -1,0 +1,21 @@
+# Configuração do serviço no Render (referência / Blueprint).
+# O banco é o Supabase: defina DATABASE_URL no painel do Render (Session pooler, ?schema=nutra).
+services:
+  - type: web
+    name: nutra
+    runtime: node
+    region: virginia
+    plan: free
+    buildCommand: npm ci && npx prisma migrate deploy && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true

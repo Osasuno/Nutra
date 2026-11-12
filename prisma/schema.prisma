@@ -1,0 +1,334 @@
+// Schema do banco de dados da plataforma Nutra (PostgreSQL / Supabase).
+// Valores fixos (papéis, status, fontes) são guardados como String e validados
+// no código, para facilitar a evolução sem migrações de enum.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Conta de acesso. role: "NUTRITIONIST" | "PATIENT"
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String
+  phone        String?
+  birthDate    DateTime?
+  /// "F" | "M"
+  sex          String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  nutritionistProfile    NutritionistProfile?
+  patientsAsNutritionist Patient[]            @relation("NutritionistPatients")
+  patientRecords         Patient[]            @relation("PatientUser")
+  messages               Message[]
+  customFoods            Food[]
+  clinicalNotes          ClinicalNote[]
+  appointments           Appointment[]        @relation("NutritionistAppointments")
+}
+
+model NutritionistProfile {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crn               String
+  specialties       String  @default("")
+  bio               String  @default("")
+  city              String  @default("")
+  state             String  @default("")
+  /// Código que a nutricionista compartilha para o paciente se vincular na hora.
+  inviteCode        String  @unique
+  acceptingPatients Boolean @default(true)
+  showInDirectory   Boolean @default(true)
+  /// JSON com horários de atendimento, duração e modalidades (ver src/lib/schedule.ts)
+  scheduleSettings  String  @default("{}")
+}
+
+/// Prontuário/vínculo entre uma nutricionista e um paciente.
+/// status: "PENDING" (solicitação) | "ACTIVE" | "ARCHIVED"
+model Patient {
+  id              String    @id @default(cuid())
+  nutritionistId  String
+  nutritionist    User      @relation("NutritionistPatients", fields: [nutritionistId], references: [id], onDelete: Cascade)
+  /// Conta do paciente (opcional: a nutri pode cadastrar antes de o paciente criar a conta).
+  userId          String?
+  user            User?     @relation("PatientUser", fields: [userId], references: [id], onDelete: SetNull)
+  status          String    @default("ACTIVE")
+  name            String
+  email           String?
+  phone           String?
+  birthDate       DateTime?
+  sex             String?
+  objective       String?
+  /// Token do link de convite individual (anulado quando o paciente aceita).
+  inviteToken     String?   @unique
+  requestMessage  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  anamnesis    Anamnesis?
+  assessments  Assessment[]
+  energyCalcs  EnergyCalculation[]
+  mealPlans    MealPlan[]
+  mealLogs     MealLog[]
+  messages     Message[]
+  notes        ClinicalNote[]
+  appointments Appointment[]
+
+  @@unique([nutritionistId, userId])
+  @@index([nutritionistId, status])
+  @@index([userId, status])
+}
+
+/// Anamnese completa, armazenada como JSON (ver src/lib/anamnesis.ts).
+model Anamnesis {
+  id          String   @id @default(cuid())
+  patientId   String   @unique
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  data        String   @default("{}")
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Avaliação antropométrica / composição corporal.
+model Assessment {
+  id             String   @id @default(cuid())
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  date           DateTime
+  weight         Float
+  /// Estatura em cm
+  height         Float
+  bmi            Float?
+  bodyFatPercent Float?
+  fatMass        Float?
+  leanMass       Float?
+  /// Protocolo usado: jp7, jp3, durnin, guedes, faulkner, slaughter, bia ou none
+  method         String   @default("none")
+  /// JSON com circunferências (cm)
+  circumferences String   @default("{}")
+  /// JSON com dobras cutâneas (mm)
+  skinfolds      String   @default("{}")
+  /// JSON com dados de bioimpedância
+  bioimpedance   String   @default("{}")
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([patientId, date])
+}
+
+/// Cálculo de gasto energético e metas de macronutrientes.
+model EnergyCalculation {
+  id             String   @id @default(cuid())
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  formula        String
+  /// JSON com todos os parâmetros usados no cálculo
+  inputs         String
+  bmr            Float?
+  tdee           Float
+  targetKcal     Float
+  proteinG       Float
+  carbsG         Float
+  fatG           Float
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([patientId, createdAt])
+}
+
+/// Alimentos. source: "TACO" | "CUSTOM" (criado pela nutricionista)
+/// Valores nutricionais por 100 g.
+model Food {
+  id         String   @id @default(cuid())
+  source     String
+  externalId String?
+  name       String
+  searchName String
+  category   String?
+  brand      String?
+  ownerId    String?
+  owner      User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  energyKcal Float?
+  protein    Float?
+  carbs      Float?
+  fat        Float?
+  fiber      Float?
+  /// mg
+  sodium     Float?
+  /// JSON com micronutrientes e demais campos
+  extra      String   @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@unique([source, externalId])
+  @@index([searchName])
+  @@index([ownerId])
+}
+
+/// Medidas caseiras referidas (POF 2008-2009 / IBGE).
+model HouseholdMeasure {
+  id          Int     @id @default(autoincrement())
+  foodName    String
+  preparation String?
+  measure     String
+  description String
+  grams       Float
+  searchName  String
+
+  @@index([searchName])
+}
+
+model MealPlan {
+  id            String   @id @default(cuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  title         String
+  notes         String?
+  isActive      Boolean  @default(false)
+  targetKcal    Float?
+  targetProtein Float?
+  targetCarbs   Float?
+  targetFat     Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  meals         Meal[]
+
+  @@index([patientId])
+}
+
+model Meal {
+  id         String     @id @default(cuid())
+  mealPlanId String
+  mealPlan   MealPlan   @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  name       String
+  time       String?
+  position   Int        @default(0)
+  notes      String?
+  items      MealItem[]
+
+  @@index([mealPlanId])
+}
+
+/// Item do plano. Os valores por 100 g são copiados do alimento no momento da
+/// prescrição para que o plano não mude se a base de alimentos mudar.
+model MealItem {
+  id               String  @id @default(cuid())
+  mealId           String
+  meal             Meal    @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  position         Int     @default(0)
+  foodId           String?
+  foodSource       String
+  foodName         String
+  quantityG        Float
+  householdMeasure String?
+  energyKcal100    Float   @default(0)
+  protein100       Float   @default(0)
+  carbs100         Float   @default(0)
+  fat100           Float   @default(0)
+  fiber100         Float   @default(0)
+  sodium100        Float   @default(0)
+  notes            String?
+
+  @@index([mealId])
+}
+
+/// Diário alimentar do paciente (foto opcional).
+model MealLog {
+  id             String    @id @default(cuid())
+  patientId      String
+  patient        Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  date           DateTime
+  mealType       String
+  description    String?
+  photoPath      String?
+  hunger         Int?
+  satiety        Int?
+  mood           String?
+  /// "SIM" | "PARCIAL" | "NAO"
+  followedPlan   String?
+  feedback       String?
+  /// "OTIMO" | "BOM" | "AJUSTAR"
+  feedbackRating String?
+  feedbackAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([patientId, date])
+  @@index([photoPath])
+}
+
+/// Mensagens do chat (uma conversa por vínculo nutricionista-paciente).
+model Message {
+  id        String    @id @default(cuid())
+  patientId String
+  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([patientId, createdAt])
+}
+
+/// Evolução / anotações privadas da nutricionista.
+model ClinicalNote {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([patientId, createdAt])
+}
+
+/// Fotos do diário alimentar, guardadas no banco (id = nome do arquivo, ex.: <uuid>.jpg).
+model Photo {
+  id        String   @id
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
+/// Consulta agendada.
+/// mode: "ONLINE" | "PRESENCIAL"
+/// status: "REQUESTED" (aguardando a nutricionista) | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW"
+model Appointment {
+  id               String    @id @default(cuid())
+  patientId        String
+  patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  nutritionistId   String
+  nutritionist     User      @relation("NutritionistAppointments", fields: [nutritionistId], references: [id], onDelete: Cascade)
+  startsAt         DateTime
+  endsAt           DateTime
+  mode             String
+  status           String    @default("REQUESTED")
+  /// Quem fez a última alteração: "NUTRITIONIST" | "PATIENT"
+  lastActionBy     String
+  /// Motivo ou observação do paciente
+  reason           String?
+  /// Observação da nutricionista (visível ao paciente)
+  notes            String?
+  /// Endereço (presencial)
+  location         String?
+  /// Link da chamada (online)
+  meetingUrl       String?
+  /// Horário anterior, quando a consulta foi reagendada
+  previousStartsAt DateTime?
+  cancelReason     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([nutritionistId, startsAt])
+  @@index([patientId, startsAt])
+}
