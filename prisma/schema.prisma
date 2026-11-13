@@ -81,6 +81,7 @@ model Patient {
   messages     Message[]
   notes        ClinicalNote[]
   appointments Appointment[]
+  exams        ExamFile[]
 
   @@unique([nutritionistId, userId])
   @@index([nutritionistId, status])
@@ -228,7 +229,13 @@ model MealItem {
   foodSource       String
   foodName         String
   quantityG        Float
+  /// Texto mostrado ao paciente ("2 conchas").
   householdMeasure String?
+  /// Medida caseira estruturada: measureQty × measureUnit de measureUnitG gramas
+  /// (ex.: 2 × "Concha" de 120 g). Vazia quando a nutri digita só gramas ou texto livre.
+  measureUnit      String?
+  measureUnitG     Float?
+  measureQty       Float?
   energyKcal100    Float   @default(0)
   protein100       Float   @default(0)
   carbs100         Float   @default(0)
@@ -298,6 +305,22 @@ model Photo {
   size      Int
   data      Bytes
   createdAt DateTime @default(now())
+}
+
+/// Exame enviado pelo paciente (PDF ou imagem), guardado no banco como as fotos do diário.
+model ExamFile {
+  id           String   @id @default(cuid())
+  patientId    String
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  fileName     String
+  mime         String
+  size         Int
+  description  String?
+  data         Bytes
+  createdAt    DateTime @default(now())
+
+  @@index([patientId, createdAt])
 }
 
 /// Consulta agendada.

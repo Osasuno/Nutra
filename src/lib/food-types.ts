@@ -14,15 +14,6 @@ export type FoodResult = {
   extra: Record<string, number | null>;
 };
 
-export type MeasureResult = {
-  id: number;
-  foodName: string;
-  preparation: string | null;
-  measure: string;
-  description: string;
-  grams: number;
-};
-
 export const SOURCE_LABEL: Record<FoodSource, string> = {
   TACO: "TACO",
   CUSTOM: "Meu alimento",
@@ -54,8 +45,3 @@ export const NUTRIENT_LABELS: Record<string, { label: string; unit: string }> = 
   gordura_saturada_g: { label: "Gordura saturada", unit: "g" },
 };
 
-/** Primeira palavra significativa do nome (para buscar medidas caseiras). */
-export function measureQueryFor(name: string): string {
-  const first = name.split(/[,(]/)[0]?.trim() ?? name;
-  return first.split(/\s+/).slice(0, 2).join(" ");
-}

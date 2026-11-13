@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import { AnamnesisForm } from "@/components/anamnesis/AnamnesisForm";
+import { ExamUploads } from "@/components/anamnesis/ExamUploads";
 import { Alert, PageSkeleton } from "@/components/ui";
 import { parseAnamnesis } from "@/lib/anamnesis";
 import { prisma } from "@/lib/db";
 import { requireNutriPatient } from "@/lib/dal";
+import { listExams } from "@/lib/exams";
 
 export default function AnamnesisPage(props: PageProps<"/nutri/pacientes/[id]/anamnese">) {
   return (
@@ -15,10 +17,14 @@ export default function AnamnesisPage(props: PageProps<"/nutri/pacientes/[id]/an
 
 async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/anamnese">["params"] }) {
   const { id } = await params;
-  const { patient } = await requireNutriPatient(id);
-  const anamnesis = await prisma.anamnesis.findUnique({ where: { patientId: id } });
+  const { user, patient } = await requireNutriPatient(id);
+  const [anamnesis, exams] = await Promise.all([
+    prisma.anamnesis.findUnique({ where: { patientId: id } }),
+    listExams(id, patient.userId),
+  ]);
   return (
     <div className="space-y-4">
+      <ExamUploads patientId={id} exams={exams} viewer="NUTRITIONIST" currentUserId={user.id} />
       {!patient.sex ? (
         <Alert tone="yellow">
           Informe o sexo do paciente em “Dados e convite” para exibir a seção de saúde da mulher apenas quando

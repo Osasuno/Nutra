@@ -118,7 +118,7 @@ export default function Home() {
               </h3>
               <ol className="mt-4 space-y-3 text-sm text-slate-600">
                 <li>1. Crie sua conta (com o código da sua nutricionista, se tiver).</li>
-                <li>2. Preencha a anamnese antes da consulta.</li>
+                <li>2. Envie seus exames pelo app antes da consulta.</li>
                 <li>3. Veja seu plano alimentar e registre suas refeições.</li>
                 <li>4. Converse com sua nutricionista e acompanhe sua evolução.</li>
               </ol>

@@ -1,13 +1,15 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { AnamnesisForm } from "@/components/anamnesis/AnamnesisForm";
+import { AnamnesisView } from "@/components/anamnesis/AnamnesisView";
+import { ExamUploads } from "@/components/anamnesis/ExamUploads";
 import { NoLink } from "@/components/patient/NoLink";
-import { PageHeader, PageSkeleton } from "@/components/ui";
+import { PageHeader, PageSkeleton, SectionTitle } from "@/components/ui";
 import { omitNutriOnly, parseAnamnesis } from "@/lib/anamnesis";
 import { prisma } from "@/lib/db";
 import { getPatientLinks } from "@/lib/dal";
+import { listExams } from "@/lib/exams";
 
-export const metadata: Metadata = { title: "Anamnese" };
+export const metadata: Metadata = { title: "Anamnese e exames" };
 
 export default function PatientAnamnesisPage() {
   return (
@@ -18,22 +20,27 @@ export default function PatientAnamnesisPage() {
 }
 
 async function Content() {
-  const { active } = await getPatientLinks();
+  const { user, active } = await getPatientLinks();
   if (!active) return <NoLink feature="A anamnese" />;
-  const anamnesis = await prisma.anamnesis.findUnique({ where: { patientId: active.id } });
+  const [anamnesis, exams] = await Promise.all([
+    prisma.anamnesis.findUnique({ where: { patientId: active.id } }),
+    listExams(active.id, user.id),
+  ]);
   return (
-    <>
+    <div className="space-y-6">
       <PageHeader
-        title="Anamnese nutricional"
-        description="Conte sobre sua saúde, rotina e alimentação. Você pode salvar e continuar depois; sua nutricionista revisa na consulta."
+        title="Anamnese e exames"
+        description="A anamnese é registrada pela sua nutricionista. Aqui você acompanha o que foi anotado e envia seus exames."
       />
-      <AnamnesisForm
-        patientId={active.id}
-        initialData={omitNutriOnly(parseAnamnesis(anamnesis?.data))}
-        role="PATIENT"
-        sex={active.sex}
-        updatedAt={anamnesis?.updatedAt.toISOString() ?? null}
-      />
-    </>
+      <ExamUploads patientId={active.id} exams={exams} viewer="PATIENT" currentUserId={user.id} />
+      <div>
+        <SectionTitle>Sua anamnese</SectionTitle>
+        <AnamnesisView
+          data={omitNutriOnly(parseAnamnesis(anamnesis?.data))}
+          sex={active.sex}
+          updatedAt={anamnesis?.updatedAt.toISOString() ?? null}
+        />
+      </div>
+    </div>
   );
 }

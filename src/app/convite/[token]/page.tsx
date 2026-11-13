@@ -49,7 +49,7 @@ async function InviteContent({ params }: { params: PageProps<"/convite/[token]">
         {invite.nutritionist.name} convidou você, {invite.name.split(" ")[0]}!
       </h1>
       <p className="mt-2 text-sm text-slate-600">
-        Com a conta você preenche a anamnese, vê seu plano alimentar, registra refeições com fotos e conversa com
+        Com a conta você envia seus exames, vê seu plano alimentar, registra refeições com fotos e conversa com
         a sua nutricionista.
       </p>
       <div className="mt-6">

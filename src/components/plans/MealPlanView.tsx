@@ -1,6 +1,7 @@
 import type { Meal, MealItem, MealPlan } from "@/generated/prisma/client";
 import { fmt } from "@/lib/format";
 import { itemTotals, macroSplit, mealTotals, planTotals } from "@/lib/meal-math";
+import { stripRepeatedGrams } from "@/lib/measures";
 
 export type PlanWithMeals = MealPlan & { meals: (Meal & { items: MealItem[] })[] };
 
@@ -46,12 +47,14 @@ export function MealPlanView({ plan, showNutrients = true }: { plan: PlanWithMea
               <ul className="divide-y divide-slate-100">
                 {items.map((item) => {
                   const it = itemTotals(item);
+                  // Planos antigos guardavam "1 unidade (50 g)": não repetir os gramas.
+                  const measure = item.householdMeasure ? stripRepeatedGrams(item.householdMeasure, item.quantityG) : "";
                   return (
                     <li key={item.id} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-800">{item.foodName}</p>
                         <p className="text-sm text-slate-600">
-                          {item.householdMeasure ? `${item.householdMeasure} · ` : ""}
+                          {measure ? `${measure} · ` : ""}
                           {fmt(item.quantityG, 0)} g
                         </p>
                         {item.notes ? <p className="text-xs italic text-slate-500">{item.notes}</p> : null}

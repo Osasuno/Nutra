@@ -43,8 +43,8 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/da
           <CardBody>
             {patient.userId ? (
               <Alert tone="green" title="Conta vinculada">
-                O paciente acessa a plataforma, preenche a anamnese, vê o plano ativo, registra o diário e conversa
-                com você pelo chat.
+                O paciente acessa a plataforma, consulta a anamnese e envia exames, vê o plano ativo, registra o
+                diário e conversa com você pelo chat.
               </Alert>
             ) : patient.inviteToken ? (
               <div className="space-y-3">

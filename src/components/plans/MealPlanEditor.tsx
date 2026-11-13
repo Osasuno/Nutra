@@ -2,28 +2,36 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
   Copy,
+  CopyPlus,
   Eye,
+  Loader2,
   Plus,
   Printer,
+  Ruler,
   Save,
   Target,
   Trash2,
+  Undo2,
 } from "lucide-react";
+import { MeasureStepper } from "@/components/foods/MeasureStepper";
+import { PortionPanel, type Portion } from "@/components/foods/PortionPanel";
+import { Modal } from "@/components/Modal";
 import { NumberInput } from "@/components/NumberInput";
 import { Alert, Badge, Button, Card, Input, Textarea, buttonClass } from "@/components/ui";
 import { MEAL_NAMES } from "@/lib/anamnesis";
 import { api } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
-import { SOURCE_LABEL, type FoodSource } from "@/lib/food-types";
+import { SOURCE_LABEL, type FoodResult, type FoodSource } from "@/lib/food-types";
 import { fmt, fmtDateTime } from "@/lib/format";
 import { newKey } from "@/lib/keys";
 import { itemTotals, macroSplit, mealTotals, planTotals, sumTotals, type NutrientTotals } from "@/lib/meal-math";
+import { measureGrams, measureText, qtyForGrams, type ItemMeasure } from "@/lib/measures";
 import { FoodPickerModal, type PickedFood } from "./FoodPickerModal";
 
 export type EditorItem = {
@@ -32,7 +40,9 @@ export type EditorItem = {
   foodSource: FoodSource;
   foodName: string;
   quantityG: number;
+  /** Texto livre (sem medida estruturada); com `measure`, o texto é gerado dela. */
   householdMeasure: string;
+  measure: ItemMeasure | null;
   energyKcal100: number;
   protein100: number;
   carbs100: number;
@@ -44,11 +54,6 @@ export type EditorItem = {
 
 export type EditorMeal = { key: string; name: string; time: string; notes: string; items: EditorItem[] };
 
-// Linha de alimento. Card estreito: nome e lixeira em cima, quantidade e medida, depois os
-// nutrientes. Card com 36rem ou mais (@xl): colunas, como uma tabela.
-const ITEM_GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-4 @xl:grid-cols-[minmax(0,1.3fr)_4.5rem_minmax(0,1fr)_2.75rem_2.5rem_2.5rem_2.5rem_2rem] @xl:items-center @xl:gap-y-0";
-
 export type EditorPlan = {
   title: string;
   notes: string;
@@ -59,13 +64,23 @@ export type EditorPlan = {
   meals: EditorMeal[];
 };
 
+// Linha de alimento. Card estreito: nome e lixeira em cima, gramas e medida, depois os
+// nutrientes. Card com 36rem ou mais (@xl): colunas, como uma tabela.
+const ITEM_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-4 @xl:grid-cols-[minmax(0,1.2fr)_4.5rem_minmax(0,1fr)_2.75rem_2.5rem_2.5rem_2.5rem_2rem] @xl:items-center @xl:gap-y-0";
+
+const itemText = (item: EditorItem) => (item.measure ? measureText(item.measure) : item.householdMeasure);
+
 function toPayloadItem(item: EditorItem) {
   return {
     foodId: item.foodId,
     foodSource: item.foodSource,
     foodName: item.foodName,
     quantityG: item.quantityG,
-    householdMeasure: item.householdMeasure,
+    householdMeasure: itemText(item),
+    measureUnit: item.measure?.unit ?? null,
+    measureUnitG: item.measure?.unitG ?? null,
+    measureQty: item.measure?.qty ?? null,
     energyKcal100: item.energyKcal100,
     protein100: item.protein100,
     carbs100: item.carbs100,
@@ -75,6 +90,28 @@ function toPayloadItem(item: EditorItem) {
     notes: item.notes,
   };
 }
+
+/** O item como "alimento" para o painel de porção (valores por 100 g gravados no plano). */
+const itemAsFood = (item: EditorItem): FoodResult => ({
+  key: `item:${item.key}`,
+  id: item.foodId,
+  source: item.foodSource,
+  name: item.foodName,
+  category: null,
+  brand: null,
+  servingSize: null,
+  per100: {
+    kcal: item.energyKcal100,
+    protein: item.protein100,
+    carbs: item.carbs100,
+    fat: item.fat100,
+    fiber: item.fiber100,
+    sodium: item.sodium100,
+  },
+  extra: {},
+});
+
+type Removed = { mealKey: string; index: number; item: EditorItem };
 
 export function MealPlanEditor({
   planId,
@@ -99,6 +136,13 @@ export function MealPlanEditor({
   const [lastSaved, setLastSaved] = useState(updatedAt);
   const [message, setMessage] = useState<{ tone: "green" | "red"; text: string } | null>(null);
   const [pickerMeal, setPickerMeal] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ mealKey: string; itemKey: string } | null>(null);
+  const [removed, setRemoved] = useState<Removed | null>(null);
+  // Versão atual do plano para o salvar (e para saber se mudou durante o envio).
+  const planRef = useRef(plan);
+  useEffect(() => {
+    planRef.current = plan;
+  }, [plan]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -106,6 +150,13 @@ export function MealPlanEditor({
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
+
+  // "Desfazer" fica disponível por alguns segundos depois de remover um alimento.
+  useEffect(() => {
+    if (!removed) return;
+    const timer = setTimeout(() => setRemoved(null), 8000);
+    return () => clearTimeout(timer);
+  }, [removed]);
 
   const change = (fn: (p: EditorPlan) => EditorPlan) => {
     setPlan(fn);
@@ -130,6 +181,39 @@ export function MealPlanEditor({
     });
   }
 
+  function duplicateMeal(index: number) {
+    change((p) => {
+      const source = p.meals[index];
+      const copy: EditorMeal = {
+        ...source,
+        key: newKey(),
+        name: `${source.name} (cópia)`,
+        items: source.items.map((i) => ({ ...i, key: newKey() })),
+      };
+      const meals = [...p.meals];
+      meals.splice(index + 1, 0, copy);
+      return { ...p, meals };
+    });
+  }
+
+  function removeItem(mealKey: string, itemKey: string) {
+    const meal = plan.meals.find((m) => m.key === mealKey);
+    const index = meal?.items.findIndex((i) => i.key === itemKey) ?? -1;
+    if (!meal || index < 0) return;
+    setRemoved({ mealKey, index, item: meal.items[index] });
+    updateMeal(mealKey, (m) => ({ ...m, items: m.items.filter((i) => i.key !== itemKey) }));
+  }
+
+  function undoRemove() {
+    if (!removed) return;
+    updateMeal(removed.mealKey, (m) => {
+      const items = [...m.items];
+      items.splice(Math.min(removed.index, items.length), 0, removed.item);
+      return { ...m, items };
+    });
+    setRemoved(null);
+  }
+
   function addPicked(picked: PickedFood) {
     const f = picked.food;
     updateMeal(picked.mealKey, (m) => ({
@@ -142,7 +226,8 @@ export function MealPlanEditor({
           foodSource: f.source,
           foodName: f.brand && f.source === "OFF" ? `${f.name} (${f.brand})` : f.name,
           quantityG: picked.grams,
-          householdMeasure: picked.householdMeasure,
+          householdMeasure: picked.measure ? "" : picked.householdMeasure,
+          measure: picked.measure,
           energyKcal100: f.per100.kcal,
           protein100: f.per100.protein,
           carbs100: f.per100.carbs,
@@ -155,13 +240,14 @@ export function MealPlanEditor({
     }));
   }
 
-  async function save() {
+  const save = useCallback(async () => {
     setSaving(true);
     setMessage(null);
+    const current = planRef.current;
     try {
       const body = {
-        ...plan,
-        meals: plan.meals.map((meal) => ({
+        ...current,
+        meals: current.meals.map((meal) => ({
           name: meal.name,
           time: meal.time,
           notes: meal.notes,
@@ -170,18 +256,32 @@ export function MealPlanEditor({
       };
       const res = await api<{ updatedAt: string }>(`/api/meal-plans/${planId}`, { method: "PUT", body });
       setLastSaved(res.updatedAt);
-      setDirty(false);
-      setMessage({ tone: "green", text: "Plano salvo." });
+      // Só limpa se nada mudou durante o envio.
+      if (planRef.current === current) setDirty(false);
       router.refresh();
+      return true;
     } catch (err) {
       setMessage({ tone: "red", text: err instanceof Error ? err.message : "Erro ao salvar." });
+      return false;
     } finally {
       setSaving(false);
     }
-  }
+  }, [planId, router]);
+
+  // Ctrl/Cmd + S salva.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (dirty && !saving) void save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dirty, saving, save]);
 
   async function toggleActive() {
-    if (dirty) await save();
+    if (dirty && !(await save())) return;
     try {
       await api(`/api/meal-plans/${planId}`, { method: "PATCH", body: { active: !active } });
       setActive(!active);
@@ -196,6 +296,7 @@ export function MealPlanEditor({
   }
 
   async function duplicate() {
+    if (dirty && !(await save())) return;
     try {
       const res = await api<{ id: string }>(`/api/patients/${patientId}/meal-plans`, { body: { fromPlanId: planId } });
       router.push(`/nutri/pacientes/${patientId}/plano/${res.id}`);
@@ -212,6 +313,10 @@ export function MealPlanEditor({
     router.refresh();
   }
 
+  const editingItem = editing
+    ? plan.meals.find((m) => m.key === editing.mealKey)?.items.find((i) => i.key === editing.itemKey) ?? null
+    : null;
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
@@ -225,27 +330,21 @@ export function MealPlanEditor({
               maxLength={120}
             />
             <div className="flex flex-wrap gap-2">
-              <Button onClick={save} disabled={saving || !dirty}>
-                <Save className="h-4 w-4" /> {saving ? "Salvando..." : "Salvar"}
-              </Button>
               <Button variant={active ? "secondary" : "outline"} onClick={toggleActive}>
                 {active ? <CheckCircle2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 {active ? "Ativo para o paciente" : "Ativar para o paciente"}
               </Button>
-              <Link href={`/nutri/pacientes/${patientId}/plano/${planId}/imprimir`} className={buttonClass("outline")} target="_blank">
+              <Link href={`/imprimir/plano/${planId}`} className={buttonClass("outline")} target="_blank">
                 <Printer className="h-4 w-4" /> Imprimir
               </Link>
-              <Button variant="ghost" onClick={duplicate} title="Duplicar plano">
+              <Button variant="ghost" onClick={duplicate} title="Duplicar plano" aria-label="Duplicar plano">
                 <Copy className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" onClick={remove} title="Excluir plano" className="text-red-600 hover:bg-red-50">
+              <Button variant="ghost" onClick={remove} title="Excluir plano" aria-label="Excluir plano" className="text-red-600 hover:bg-red-50">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            {dirty ? "Alterações não salvas" : `Salvo em ${fmtDateTime(lastSaved)}`}
-          </p>
           {message ? (
             <Alert tone={message.tone} className="mt-3">
               {message.text}
@@ -253,155 +352,25 @@ export function MealPlanEditor({
           ) : null}
         </Card>
 
-        {plan.meals.map((meal, index) => {
-          const t = mealTotals(meal);
-          return (
-            <Card key={meal.key} className="print-break-inside-avoid">
-              <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center">
-                <div className="flex min-w-0 flex-1 gap-2">
-                  <Input
-                    value={meal.time}
-                    type="time"
-                    onChange={(e) => updateMeal(meal.key, (m) => ({ ...m, time: e.target.value }))}
-                    className="w-28 shrink-0"
-                    aria-label="Horário"
-                  />
-                  <Input
-                    value={meal.name}
-                    list="meal-names"
-                    onChange={(e) => updateMeal(meal.key, (m) => ({ ...m, name: e.target.value }))}
-                    className="min-w-0 font-medium"
-                    aria-label="Nome da refeição"
-                    maxLength={100}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="mr-auto text-xs text-slate-500 sm:mr-2">
-                    <strong className="text-slate-800">{fmt(t.kcal, 0)} kcal</strong> · P {fmt(t.protein, 0)} · C {fmt(t.carbs, 0)} · G{" "}
-                    {fmt(t.fat, 0)}
-                  </span>
-                  <button type="button" onClick={() => moveMeal(index, -1)} className="rounded p-2 text-slate-400 hover:bg-slate-100 sm:p-1.5" aria-label="Mover para cima">
-                    <ArrowUp className="h-4 w-4" />
-                  </button>
-                  <button type="button" onClick={() => moveMeal(index, 1)} className="rounded p-2 text-slate-400 hover:bg-slate-100 sm:p-1.5" aria-label="Mover para baixo">
-                    <ArrowDown className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (meal.items.length && !window.confirm(`Remover a refeição "${meal.name}"?`)) return;
-                      change((p) => ({ ...p, meals: p.meals.filter((m) => m.key !== meal.key) }));
-                    }}
-                    className="rounded p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1.5"
-                    aria-label="Remover refeição"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {meal.items.length ? (
-                // Em card estreito (celular, ou ao lado do resumo) cada alimento vira um bloco;
-                // a partir de 36rem de largura do card, as colunas de tabela.
-                <div className="@container">
-                  <div className="divide-y divide-slate-100">
-                    <div className={cn(ITEM_GRID, "hidden py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 @xl:grid")} aria-hidden>
-                      <span>Alimento</span>
-                      <span>Qtd (g)</span>
-                      <span>Medida caseira</span>
-                      <span className="text-right">kcal</span>
-                      <span className="text-right">P</span>
-                      <span className="text-right">C</span>
-                      <span className="text-right">G</span>
-                      <span />
-                    </div>
-                    {meal.items.map((item) => {
-                      const it = itemTotals(item);
-                      return (
-                        <div key={item.key} className={cn(ITEM_GRID, "py-3 text-sm @xl:py-2")}>
-                          <div className="min-w-0">
-                            <p className="font-medium text-slate-800">{item.foodName}</p>
-                            <div className="mt-1 flex items-center gap-2">
-                              <Badge tone={item.foodSource === "TACO" ? "green" : item.foodSource === "CUSTOM" ? "purple" : "blue"}>
-                                {SOURCE_LABEL[item.foodSource]}
-                              </Badge>
-                              <input
-                                value={item.notes}
-                                onChange={(e) => updateItem(meal.key, item.key, { notes: e.target.value })}
-                                placeholder="Obs. / substituição"
-                                maxLength={500}
-                                aria-label="Observação ou substituição"
-                                className="w-full min-w-0 rounded border-0 bg-transparent px-1 text-base text-slate-500 placeholder:text-slate-300 focus:bg-slate-50 focus:outline-none sm:text-xs"
-                              />
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => updateMeal(meal.key, (m) => ({ ...m, items: m.items.filter((i) => i.key !== item.key) }))}
-                            className="col-start-2 row-start-1 -mr-2 rounded p-2 text-slate-300 hover:bg-red-50 hover:text-red-600 @xl:col-start-8 @xl:mr-0 @xl:p-1"
-                            aria-label="Remover alimento"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          <div className="col-span-2 flex gap-2 @xl:contents">
-                            <label className="flex w-28 shrink-0 items-center gap-1.5 @xl:w-auto">
-                              <NumberInput
-                                value={item.quantityG}
-                                onValueChange={(v) => updateItem(meal.key, item.key, { quantityG: v ?? 0 })}
-                                className="h-10 @xl:h-8"
-                                aria-label="Quantidade em gramas"
-                              />
-                              <span className="text-xs text-slate-500 @xl:hidden">g</span>
-                            </label>
-                            <Input
-                              value={item.householdMeasure}
-                              onChange={(e) => updateItem(meal.key, item.key, { householdMeasure: e.target.value })}
-                              className="h-10 min-w-0 flex-1 sm:text-xs @xl:h-8"
-                              placeholder="Medida caseira (ex.: 2 colheres de sopa)"
-                              maxLength={200}
-                              aria-label="Medida caseira"
-                            />
-                          </div>
-                          <p className="col-span-2 flex flex-wrap gap-x-3 text-xs text-slate-500 @xl:contents @xl:text-sm @xl:text-slate-700">
-                            <span className="font-medium text-slate-700 @xl:text-right">
-                              {fmt(it.kcal, 0)}
-                              <span className="@xl:hidden"> kcal</span>
-                            </span>
-                            <span className="@xl:text-right">
-                              <span className="@xl:hidden">P </span>
-                              {fmt(it.protein, 1)}
-                            </span>
-                            <span className="@xl:text-right">
-                              <span className="@xl:hidden">C </span>
-                              {fmt(it.carbs, 1)}
-                            </span>
-                            <span className="@xl:text-right">
-                              <span className="@xl:hidden">G </span>
-                              {fmt(it.fat, 1)}
-                            </span>
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="space-y-3 px-4 py-3">
-                <Button variant="secondary" size="sm" onClick={() => setPickerMeal(meal.key)}>
-                  <Plus className="h-4 w-4" /> Adicionar alimento
-                </Button>
-                <Textarea
-                  value={meal.notes}
-                  onChange={(e) => updateMeal(meal.key, (m) => ({ ...m, notes: e.target.value }))}
-                  rows={2}
-                  placeholder="Orientações e opções de substituição para esta refeição"
-                  maxLength={3000}
-                />
-              </div>
-            </Card>
-          );
-        })}
+        {plan.meals.map((meal, index) => (
+          <MealCard
+            key={meal.key}
+            meal={meal}
+            index={index}
+            count={plan.meals.length}
+            onChange={(fn) => updateMeal(meal.key, fn)}
+            onUpdateItem={(itemKey, patch) => updateItem(meal.key, itemKey, patch)}
+            onRemoveItem={(itemKey) => removeItem(meal.key, itemKey)}
+            onEditItem={(itemKey) => setEditing({ mealKey: meal.key, itemKey })}
+            onAddFood={() => setPickerMeal(meal.key)}
+            onMove={(dir) => moveMeal(index, dir)}
+            onDuplicate={() => duplicateMeal(index)}
+            onRemove={() => {
+              if (meal.items.length && !window.confirm(`Remover a refeição "${meal.name}"?`)) return;
+              change((p) => ({ ...p, meals: p.meals.filter((m) => m.key !== meal.key) }));
+            }}
+          />
+        ))}
 
         <datalist id="meal-names">
           {MEAL_NAMES.map((n) => (
@@ -432,53 +401,22 @@ export function MealPlanEditor({
 
       <div className="space-y-4 xl:sticky xl:top-20 xl:self-start">
         <TotalsCard totals={totals} split={split} plan={plan} />
-        <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
-              <Target className="h-4 w-4 text-emerald-600" /> Metas diárias
-            </p>
-            {latestEnergy ? (
-              <button
-                type="button"
-                className="text-xs font-medium text-emerald-700 hover:underline"
-                onClick={() =>
-                  change((p) => ({
-                    ...p,
-                    targetKcal: Math.round(latestEnergy.targetKcal),
-                    targetProtein: Math.round(latestEnergy.proteinG),
-                    targetCarbs: Math.round(latestEnergy.carbsG),
-                    targetFat: Math.round(latestEnergy.fatG),
-                  }))
-                }
-              >
-                Usar último cálculo
-              </button>
-            ) : null}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                ["targetKcal", "kcal"],
-                ["targetProtein", "Proteínas (g)"],
-                ["targetCarbs", "Carboidratos (g)"],
-                ["targetFat", "Gorduras (g)"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="text-xs text-slate-500">
-                {label}
-                <NumberInput
-                  value={plan[key]}
-                  onValueChange={(v) => change((p) => ({ ...p, [key]: v }))}
-                  className="mt-1 h-10 sm:h-8"
-                />
-              </label>
-            ))}
-          </div>
-          {!latestEnergy ? (
-            <p className="mt-2 text-xs text-slate-400">Dica: salve um cálculo em “Energia e metas” para preencher automaticamente.</p>
-          ) : null}
-        </Card>
+        <TargetsCard plan={plan} latestEnergy={latestEnergy} onChange={change} />
       </div>
+
+      {/* Espaço para a barra fixa de salvar não cobrir o fim da página. */}
+      <div className="h-16 xl:col-span-2" aria-hidden />
+
+      <SaveBar
+        totals={totals}
+        targetKcal={plan.targetKcal}
+        dirty={dirty}
+        saving={saving}
+        lastSaved={lastSaved}
+        onSave={() => void save()}
+        removed={removed}
+        onUndo={undoRemove}
+      />
 
       {pickerMeal ? (
         <FoodPickerModal
@@ -488,7 +426,378 @@ export function MealPlanEditor({
           onClose={() => setPickerMeal(null)}
         />
       ) : null}
+
+      {editing && editingItem ? (
+        <Modal title="Porção" onClose={() => setEditing(null)} size="lg">
+          <PortionPanel
+            food={itemAsFood(editingItem)}
+            initial={{ grams: editingItem.quantityG, householdMeasure: editingItem.householdMeasure, measure: editingItem.measure }}
+            onSubmit={(portion: Portion) => {
+              updateItem(editing.mealKey, editing.itemKey, {
+                quantityG: portion.grams,
+                measure: portion.measure,
+                householdMeasure: portion.measure ? "" : portion.householdMeasure,
+              });
+              setEditing(null);
+            }}
+          >
+            {(portion) => (
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button variant="outline" onClick={() => setEditing(null)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={!portion.grams}>
+                  Aplicar
+                </Button>
+              </div>
+            )}
+          </PortionPanel>
+        </Modal>
+      ) : null}
     </div>
+  );
+}
+
+function MealCard({
+  meal,
+  index,
+  count,
+  onChange,
+  onUpdateItem,
+  onRemoveItem,
+  onEditItem,
+  onAddFood,
+  onMove,
+  onDuplicate,
+  onRemove,
+}: {
+  meal: EditorMeal;
+  index: number;
+  count: number;
+  onChange: (fn: (m: EditorMeal) => EditorMeal) => void;
+  onUpdateItem: (itemKey: string, patch: Partial<EditorItem>) => void;
+  onRemoveItem: (itemKey: string) => void;
+  onEditItem: (itemKey: string) => void;
+  onAddFood: () => void;
+  onMove: (dir: -1 | 1) => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}) {
+  const t = mealTotals(meal);
+  const iconBtn = "rounded p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-30 sm:p-1.5";
+  return (
+    <Card className="print-break-inside-avoid">
+      <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 gap-2">
+          <Input
+            value={meal.time}
+            type="time"
+            onChange={(e) => onChange((m) => ({ ...m, time: e.target.value }))}
+            className="w-28 shrink-0"
+            aria-label="Horário"
+          />
+          <Input
+            value={meal.name}
+            list="meal-names"
+            onChange={(e) => onChange((m) => ({ ...m, name: e.target.value }))}
+            className="min-w-0 font-medium"
+            aria-label="Nome da refeição"
+            maxLength={100}
+          />
+        </div>
+        <div className="flex items-center gap-0.5">
+          <span className="mr-auto text-xs text-slate-500 sm:mr-2">
+            <strong className="text-slate-800">{fmt(t.kcal, 0)} kcal</strong> · P {fmt(t.protein, 0)} · C {fmt(t.carbs, 0)} · G{" "}
+            {fmt(t.fat, 0)}
+          </span>
+          <button type="button" onClick={() => onMove(-1)} disabled={index === 0} className={iconBtn} aria-label="Mover para cima" title="Mover para cima">
+            <ArrowUp className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => onMove(1)} disabled={index === count - 1} className={iconBtn} aria-label="Mover para baixo" title="Mover para baixo">
+            <ArrowDown className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={onDuplicate} className={iconBtn} aria-label="Duplicar refeição" title="Duplicar refeição">
+            <CopyPlus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1.5"
+            aria-label="Remover refeição"
+            title="Remover refeição"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {meal.items.length ? (
+        <div className="@container">
+          <div className="divide-y divide-slate-100">
+            <div className={cn(ITEM_GRID, "hidden py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 @xl:grid")} aria-hidden>
+              <span>Alimento</span>
+              <span>Gramas</span>
+              <span>Medida caseira</span>
+              <span className="text-right">kcal</span>
+              <span className="text-right">P</span>
+              <span className="text-right">C</span>
+              <span className="text-right">G</span>
+              <span />
+            </div>
+            {meal.items.map((item) => (
+              <ItemRow
+                key={item.key}
+                item={item}
+                onChange={(patch) => onUpdateItem(item.key, patch)}
+                onRemove={() => onRemoveItem(item.key)}
+                onEdit={() => onEditItem(item.key)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="space-y-3 px-4 py-3">
+        <Button variant="secondary" size="sm" onClick={onAddFood}>
+          <Plus className="h-4 w-4" /> Adicionar alimento
+        </Button>
+        <Textarea
+          value={meal.notes}
+          onChange={(e) => onChange((m) => ({ ...m, notes: e.target.value }))}
+          rows={2}
+          placeholder="Orientações e opções de substituição para esta refeição"
+          maxLength={3000}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function ItemRow({
+  item,
+  onChange,
+  onRemove,
+  onEdit,
+}: {
+  item: EditorItem;
+  onChange: (patch: Partial<EditorItem>) => void;
+  onRemove: () => void;
+  onEdit: () => void;
+}) {
+  const it = itemTotals(item);
+  return (
+    <div className={cn(ITEM_GRID, "py-3 text-sm @xl:py-2")}>
+      <div className="min-w-0">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="text-left font-medium text-slate-800 hover:text-emerald-700 hover:underline"
+          title="Ajustar porção e medida caseira"
+        >
+          {item.foodName}
+        </button>
+        <div className="mt-1 flex items-center gap-2">
+          <Badge tone={item.foodSource === "TACO" ? "green" : item.foodSource === "CUSTOM" ? "purple" : "blue"}>
+            {SOURCE_LABEL[item.foodSource]}
+          </Badge>
+          <input
+            value={item.notes}
+            onChange={(e) => onChange({ notes: e.target.value })}
+            placeholder="Obs. / substituição"
+            maxLength={500}
+            aria-label="Observação ou substituição"
+            className="w-full min-w-0 rounded border-0 bg-transparent px-1 text-base text-slate-500 placeholder:text-slate-300 focus:bg-slate-50 focus:outline-none sm:text-xs"
+          />
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="col-start-2 row-start-1 -mr-2 rounded p-2 text-slate-300 hover:bg-red-50 hover:text-red-600 @xl:col-start-8 @xl:mr-0 @xl:p-1"
+        aria-label="Remover alimento"
+        title="Remover alimento"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+      <div className="col-span-2 flex gap-2 @xl:contents">
+        <label className="flex w-28 shrink-0 items-center gap-1.5 @xl:w-auto">
+          <NumberInput
+            value={item.quantityG}
+            onValueChange={(v) =>
+              onChange({
+                quantityG: v ?? 0,
+                // Com medida, os gramas digitados viram a quantidade de medidas (gramas ÷ peso da unidade).
+                measure: item.measure && v ? { ...item.measure, qty: qtyForGrams(v, item.measure.unitG) } : item.measure,
+              })
+            }
+            className="h-10 @xl:h-8"
+            aria-label="Quantidade em gramas"
+          />
+          <span className="text-xs text-slate-500 @xl:hidden">g</span>
+        </label>
+        {item.measure ? (
+          <MeasureStepper
+            measure={item.measure}
+            onChange={(m) => onChange({ measure: m, quantityG: measureGrams(m) })}
+            size="sm"
+            className="min-w-0 flex-1 @xl:flex-none"
+          />
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <Input
+              value={item.householdMeasure}
+              onChange={(e) => onChange({ householdMeasure: e.target.value })}
+              className="h-10 min-w-0 flex-1 sm:text-xs @xl:h-8"
+              placeholder="Medida caseira"
+              maxLength={200}
+              aria-label="Medida caseira"
+            />
+            <button
+              type="button"
+              onClick={onEdit}
+              className="shrink-0 rounded p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700 @xl:p-1.5"
+              aria-label="Escolher medida caseira"
+              title="Escolher medida caseira (IBGE)"
+            >
+              <Ruler className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="col-span-2 flex flex-wrap gap-x-3 text-xs text-slate-500 @xl:contents @xl:text-sm @xl:text-slate-700">
+        <span className="font-medium text-slate-700 @xl:text-right">
+          {fmt(it.kcal, 0)}
+          <span className="@xl:hidden"> kcal</span>
+        </span>
+        <span className="@xl:text-right">
+          <span className="@xl:hidden">P </span>
+          {fmt(it.protein, 1)}
+        </span>
+        <span className="@xl:text-right">
+          <span className="@xl:hidden">C </span>
+          {fmt(it.carbs, 1)}
+        </span>
+        <span className="@xl:text-right">
+          <span className="@xl:hidden">G </span>
+          {fmt(it.fat, 1)}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+/** Barra fixa no rodapé: total do dia, estado e Salvar (também com Ctrl/Cmd + S). */
+function SaveBar({
+  totals,
+  targetKcal,
+  dirty,
+  saving,
+  lastSaved,
+  onSave,
+  removed,
+  onUndo,
+}: {
+  totals: NutrientTotals;
+  targetKcal: number | null;
+  dirty: boolean;
+  saving: boolean;
+  lastSaved: string;
+  onSave: () => void;
+  removed: Removed | null;
+  onUndo: () => void;
+}) {
+  const pct = targetKcal ? Math.round((totals.kcal / targetKcal) * 100) : null;
+  return (
+    <div className="no-print fixed inset-x-0 bottom-0 z-30 lg:left-64">
+      {removed ? (
+        <div className="mx-auto mb-2 flex w-fit max-w-[calc(100%-2rem)] items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-lg" role="status">
+          <span className="min-w-0 truncate">{removed.item.foodName} removido</span>
+          <button type="button" onClick={onUndo} className="inline-flex shrink-0 items-center gap-1 font-medium text-emerald-300 hover:text-emerald-200">
+            <Undo2 className="h-4 w-4" /> Desfazer
+          </button>
+        </div>
+      ) : null}
+      <div className="border-t border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-slate-900">
+              <strong>{fmt(totals.kcal, 0)}</strong>
+              {targetKcal ? <span className="text-slate-500"> / {fmt(targetKcal, 0)}</span> : null} kcal
+              {pct !== null ? (
+                <span className={cn("ml-1.5 text-xs font-medium", pct < 90 ? "text-amber-600" : pct <= 110 ? "text-emerald-600" : "text-red-600")}>
+                  {pct}%
+                </span>
+              ) : null}
+              <span className="ml-3 hidden text-xs text-slate-500 sm:inline">
+                P {fmt(totals.protein, 0)} g · C {fmt(totals.carbs, 0)} g · G {fmt(totals.fat, 0)} g
+              </span>
+            </p>
+            <p className="truncate text-xs text-slate-500">
+              {saving ? "Salvando..." : dirty ? "Alterações não salvas" : `Salvo em ${fmtDateTime(lastSaved)}`}
+              <span className="hidden [@media(pointer:fine)]:inline">{dirty && !saving ? " · Ctrl/⌘ + S" : ""}</span>
+            </p>
+          </div>
+          <Button onClick={onSave} disabled={saving || !dirty} className="shrink-0">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {saving ? "Salvando" : "Salvar"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TargetsCard({
+  plan,
+  latestEnergy,
+  onChange,
+}: {
+  plan: EditorPlan;
+  latestEnergy: { targetKcal: number; proteinG: number; carbsG: number; fatG: number } | null;
+  onChange: (fn: (p: EditorPlan) => EditorPlan) => void;
+}) {
+  return (
+    <Card className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <Target className="h-4 w-4 text-emerald-600" /> Metas diárias
+        </p>
+        {latestEnergy ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-emerald-700 hover:underline"
+            onClick={() =>
+              onChange((p) => ({
+                ...p,
+                targetKcal: Math.round(latestEnergy.targetKcal),
+                targetProtein: Math.round(latestEnergy.proteinG),
+                targetCarbs: Math.round(latestEnergy.carbsG),
+                targetFat: Math.round(latestEnergy.fatG),
+              }))
+            }
+          >
+            Usar último cálculo
+          </button>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {(
+          [
+            ["targetKcal", "kcal"],
+            ["targetProtein", "Proteínas (g)"],
+            ["targetCarbs", "Carboidratos (g)"],
+            ["targetFat", "Gorduras (g)"],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="text-xs text-slate-500">
+            {label}
+            <NumberInput value={plan[key]} onValueChange={(v) => onChange((p) => ({ ...p, [key]: v }))} className="mt-1 h-10 sm:h-8" />
+          </label>
+        ))}
+      </div>
+      {!latestEnergy ? (
+        <p className="mt-2 text-xs text-slate-400">Dica: salve um cálculo em “Energia e metas” para preencher automaticamente.</p>
+      ) : null}
+    </Card>
   );
 }
 
@@ -555,9 +864,9 @@ function TotalsCard({ totals, split, plan }: { totals: NutrientTotals; split: { 
       {perMeal.length ? (
         <ul className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
           {perMeal.map((m, i) => (
-            <li key={i} className="flex justify-between">
+            <li key={i} className="flex justify-between gap-2">
               <span className="truncate">{m.name}</span>
-              <span>
+              <span className="shrink-0">
                 {fmt(m.kcal, 0)} kcal{" "}
                 <span className="text-slate-400">({totals.kcal ? fmt((m.kcal / totals.kcal) * 100, 0) : 0}%)</span>
               </span>

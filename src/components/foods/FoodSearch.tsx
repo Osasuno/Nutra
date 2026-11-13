@@ -15,22 +15,36 @@ export function FoodSearch({
   selectedKey,
   autoFocus = false,
   refreshKey = 0,
+  inputRef,
 }: {
   onSelect: (food: FoodResult) => void;
   selectedKey?: string | null;
   autoFocus?: boolean;
   /** Muda para forçar nova busca (ex.: após criar alimento). */
   refreshKey?: number;
+  inputRef?: React.Ref<HTMLInputElement>;
 }) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("local");
   const [results, setResults] = useState<FoodResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [frequent, setFrequent] = useState<FoodResult[]>([]);
   const controller = useRef<AbortController | null>(null);
 
   const trimmed = query.trim();
   const tooShort = trimmed.length < 2;
+
+  // Com a busca vazia, mostra os alimentos que a nutricionista mais usa nos planos.
+  useEffect(() => {
+    let cancelled = false;
+    api<{ results: FoodResult[] }>("/api/foods/frequent")
+      .then((data) => !cancelled && setFrequent(data.results))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
   useEffect(() => {
     const q = trimmed;
@@ -69,6 +83,9 @@ export function FoodSearch({
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
+          ref={inputRef}
+          type="search"
+          enterKeyHint="search"
           autoFocus={autoFocus}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -109,8 +126,17 @@ export function FoodSearch({
         </Alert>
       ) : null}
 
-      <ul className="mt-3 min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white">
-        {tooShort ? (
+      <ul className="mt-3 min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white">
+        {tooShort && tab === "local" && frequent.length ? (
+          <>
+            <li className="bg-slate-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+              Seus alimentos mais usados
+            </li>
+            {frequent.map((food) => (
+              <FoodRow key={food.key} food={food} selected={selectedKey === food.key} onSelect={onSelect} />
+            ))}
+          </>
+        ) : tooShort ? (
           <li className="px-4 py-8 text-center text-sm text-slate-500">Digite pelo menos 2 letras para buscar.</li>
         ) : !loading && visibleResults.length === 0 && !visibleError ? (
           <li className="px-4 py-8 text-center text-sm text-slate-500">
@@ -119,34 +145,35 @@ export function FoodSearch({
           </li>
         ) : (
           visibleResults.map((food) => (
-            <li key={food.key}>
-              <button
-                type="button"
-                onClick={() => onSelect(food)}
-                className={cn(
-                  "w-full px-4 py-2.5 text-left transition hover:bg-emerald-50/60",
-                  selectedKey === food.key && "bg-emerald-50",
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-slate-900">{food.name}</p>
-                  <Badge tone={food.source === "TACO" ? "green" : food.source === "CUSTOM" ? "purple" : "blue"} className="shrink-0">
-                    {SOURCE_LABEL[food.source]}
-                  </Badge>
-                </div>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {[food.brand, food.category].filter(Boolean).join(" · ") || " "}
-                </p>
-                <p className="mt-1 text-xs text-slate-600">
-                  <span className="font-semibold text-slate-800">{fmtNutrient(food.per100.kcal, 0)} kcal</span> · P{" "}
-                  {fmtNutrient(food.per100.protein)} g · C {fmtNutrient(food.per100.carbs)} g · G {fmtNutrient(food.per100.fat)} g · Fibra{" "}
-                  {fmtNutrient(food.per100.fiber)} g <span className="text-slate-400">(100 g)</span>
-                </p>
-              </button>
-            </li>
+            <FoodRow key={food.key} food={food} selected={selectedKey === food.key} onSelect={onSelect} />
           ))
         )}
       </ul>
     </div>
+  );
+}
+
+function FoodRow({ food, selected, onSelect }: { food: FoodResult; selected: boolean; onSelect: (food: FoodResult) => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(food)}
+        className={cn("w-full px-4 py-2.5 text-left transition hover:bg-emerald-50/60", selected && "bg-emerald-50")}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-slate-900">{food.name}</p>
+          <Badge tone={food.source === "TACO" ? "green" : food.source === "CUSTOM" ? "purple" : "blue"} className="shrink-0">
+            {SOURCE_LABEL[food.source]}
+          </Badge>
+        </div>
+        <p className="mt-0.5 text-xs text-slate-500">{[food.brand, food.category].filter(Boolean).join(" · ") || " "}</p>
+        <p className="mt-1 text-xs text-slate-600">
+          <span className="font-semibold text-slate-800">{fmtNutrient(food.per100.kcal, 0)} kcal</span> · P{" "}
+          {fmtNutrient(food.per100.protein)} g · C {fmtNutrient(food.per100.carbs)} g · G {fmtNutrient(food.per100.fat)} g · Fibra{" "}
+          {fmtNutrient(food.per100.fiber)} g <span className="text-slate-400">(100 g)</span>
+        </p>
+      </button>
+    </li>
   );
 }

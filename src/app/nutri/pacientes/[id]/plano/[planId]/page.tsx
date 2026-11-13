@@ -46,6 +46,10 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
         foodName: item.foodName,
         quantityG: item.quantityG,
         householdMeasure: item.householdMeasure ?? "",
+        measure:
+          item.measureUnit && item.measureUnitG && item.measureQty
+            ? { unit: item.measureUnit, unitG: item.measureUnitG, qty: item.measureQty }
+            : null,
         energyKcal100: item.energyKcal100,
         protein100: item.protein100,
         carbs100: item.carbs100,

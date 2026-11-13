@@ -1,3 +1,4 @@
+import { measureText } from "./measures";
 import { optionalText, z } from "./validation";
 
 // Formato do plano alimentar trocado entre o editor e a API.
@@ -12,20 +13,31 @@ export const DEFAULT_MEALS = [
 
 const num = (max: number) => z.number().min(0).max(max);
 
-export const mealItemSchema = z.object({
-  foodId: z.string().max(100).nullish(),
-  foodSource: z.enum(["TACO", "CUSTOM", "OFF"]),
-  foodName: z.string().trim().min(1).max(300),
-  quantityG: num(5000),
-  householdMeasure: optionalText(200),
-  energyKcal100: num(1000),
-  protein100: num(100),
-  carbs100: num(100),
-  fat100: num(100),
-  fiber100: num(100),
-  sodium100: num(100000),
-  notes: optionalText(500),
-});
+export const mealItemSchema = z
+  .object({
+    foodId: z.string().max(100).nullish(),
+    foodSource: z.enum(["TACO", "CUSTOM", "OFF"]),
+    foodName: z.string().trim().min(1).max(300),
+    quantityG: num(5000),
+    householdMeasure: optionalText(200),
+    measureUnit: optionalText(80),
+    measureUnitG: z.number().positive().max(5000).nullish(),
+    measureQty: z.number().positive().max(100).nullish(),
+    energyKcal100: num(1000),
+    protein100: num(100),
+    carbs100: num(100),
+    fat100: num(100),
+    fiber100: num(100),
+    sodium100: num(100000),
+    notes: optionalText(500),
+  })
+  // A medida estruturada vem completa (unidade, peso e quantidade) ou não vem. Com ela, o
+  // texto que o paciente lê ("2 conchas") é gerado aqui, igual ao que o editor mostra.
+  .transform(({ measureUnit, measureUnitG, measureQty, ...item }) =>
+    measureUnit && measureUnitG && measureQty
+      ? { ...item, householdMeasure: measureText({ unit: measureUnit, qty: measureQty }), measureUnit, measureUnitG, measureQty }
+      : { ...item, measureUnit: null, measureUnitG: null, measureQty: null },
+  );
 
 export const mealSchema = z.object({
   name: z.string().trim().min(1).max(100),

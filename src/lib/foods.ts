@@ -2,12 +2,12 @@ import "server-only";
 import { prisma } from "./db";
 import { normalizeText, searchTokens } from "./text";
 import type { Food } from "@/generated/prisma/client";
-import type { FoodResult, FoodSource, MeasureResult } from "./food-types";
+import type { FoodResult, FoodSource } from "./food-types";
 
 // Busca de alimentos: base local (TACO + alimentos personalizados) e
 // produtos industrializados do Open Food Facts (online, dados ODbL).
 
-export type { FoodResult, FoodSource, MeasureResult };
+export type { FoodResult, FoodSource };
 
 const zero = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
@@ -62,6 +62,11 @@ export async function searchLocalFoods(query: string, ownerId: string | null, li
       if (food.searchName.startsWith(q)) score += 50;
       if (food.searchName.startsWith(tokens[0])) score += 30;
       if (firstWord.test(food.searchName)) score += 10;
+      // "arroz" -> "Arroz, tipo 1, cozido" antes de "Arroz carreteiro" (o alimento em si, não o prato).
+      if (food.searchName.split(",")[0].trim() === q) score += 25;
+      // Planos prescrevem o alimento pronto: cozido/grelhado/assado antes do cru.
+      if (/\b(cozid|grelhad|assad)/.test(food.searchName)) score += 6;
+      if (/\bcru(a|s|as)?\b/.test(food.searchName)) score -= 3;
       if (food.source === "CUSTOM") score += 8;
       score -= food.searchName.length / 15;
       return { food, score };
@@ -173,39 +178,4 @@ export async function searchOpenFoodFacts(query: string, limit = 24): Promise<Fo
   return data;
 }
 
-// ---------------------------------------------------------------------------
-// Medidas caseiras (POF 2008-2009 / IBGE)
-// ---------------------------------------------------------------------------
-
-export async function searchMeasures(query: string, limit = 60): Promise<MeasureResult[]> {
-  const tokens = searchTokens(query).slice(0, 4);
-  if (!tokens.length) return [];
-  const rows = await prisma.householdMeasure.findMany({
-    where: { AND: tokens.map((t) => ({ searchName: { contains: t } })) },
-    take: 400,
-  });
-  const first = tokens[0];
-  const q = normalizeText(query);
-  return rows
-    .map((row) => {
-      const name = normalizeText(row.foodName);
-      let score = 0;
-      if (name === q) score += 40;
-      if (name.startsWith(q)) score += 20;
-      else if (row.searchName.startsWith(first)) score += 12;
-      if (!row.preparation) score += 2;
-      score -= row.foodName.length / 10;
-      return { row, score, group: `${row.foodName}|${row.preparation ?? ""}` };
-    })
-    // Agrupa as medidas de cada alimento, do mais relevante para o menos.
-    .sort((a, b) => b.score - a.score || a.group.localeCompare(b.group) || a.row.grams - b.row.grams)
-    .slice(0, limit)
-    .map(({ row }) => ({
-      id: row.id,
-      foodName: row.foodName,
-      preparation: row.preparation,
-      measure: row.measure,
-      description: row.description,
-      grams: row.grams,
-    }));
-}
+// Medidas caseiras (POF 2008-2009 / IBGE): ver src/lib/household.ts.

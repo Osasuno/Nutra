@@ -4,17 +4,16 @@ import Link from "next/link";
 import {
   CalendarDays,
   Camera,
-  ClipboardList,
   Clock,
   MessageCircle,
   MessageSquareQuote,
+  Paperclip,
   Scale,
   UtensilsCrossed,
 } from "lucide-react";
 import { LinkActionButton } from "@/components/patient/ConnectForms";
 import { NoLink } from "@/components/patient/NoLink";
 import { Alert, Avatar, Badge, ButtonLink, Card, CardBody, CardHeader, PageSkeleton, Stat } from "@/components/ui";
-import { anamnesisProgress, parseAnamnesis } from "@/lib/anamnesis";
 import { prisma } from "@/lib/db";
 import { getPatientLinks } from "@/lib/dal";
 import { fmt, fmtDate, fmtRelative } from "@/lib/format";
@@ -70,7 +69,7 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
     );
   }
 
-  const [plan, feedbacks, lastAssessment, unread, anamnesis, logs7, nextAppointment] = await Promise.all([
+  const [plan, feedbacks, lastAssessment, unread, examCount, logs7, nextAppointment] = await Promise.all([
     prisma.mealPlan.findFirst({
       where: { patientId: active.id, isActive: true },
       include: { meals: { orderBy: { position: "asc" }, include: { items: true } } },
@@ -82,14 +81,13 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
     }),
     prisma.assessment.findFirst({ where: { patientId: active.id }, orderBy: { date: "desc" } }),
     prisma.message.count({ where: { patientId: active.id, readAt: null, senderId: { not: user.id } } }),
-    prisma.anamnesis.findUnique({ where: { patientId: active.id } }),
+    prisma.examFile.count({ where: { patientId: active.id } }),
     prisma.mealLog.count({ where: { patientId: active.id, date: { gte: daysAgo(7) } } }),
     prisma.appointment.findFirst({
       where: { patientId: active.id, status: { in: OPEN_STATUSES }, endsAt: { gte: daysAgo(0) } },
       orderBy: { startsAt: "asc" },
     }),
   ]);
-  const progress = anamnesisProgress(parseAnamnesis(anamnesis?.data), { sex: active.sex, role: "PATIENT" });
   const totals = plan ? planTotals(plan.meals) : null;
   const nutri = active.nutritionist;
   const digits = nutri.phone?.replace(/\D/g, "") ?? "";
@@ -117,15 +115,6 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
 
       {typeof aviso === "string" ? <Alert tone="yellow">{aviso}</Alert> : null}
 
-      {progress.percent < 60 ? (
-        <Alert tone="blue" title="Complete sua anamnese">
-          Responder antes da consulta ajuda sua nutricionista a montar um plano sob medida.{" "}
-          <Link href="/paciente/anamnese" className="font-medium underline">
-            Preencher agora ({progress.percent}% concluído)
-          </Link>
-        </Alert>
-      ) : null}
-
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <Stat
           label="Último peso"
@@ -136,10 +125,14 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
         />
         <Stat label="Registros no diário (7 dias)" value={logs7} icon={<Camera className="h-5 w-5" />} tone="blue" />
         <Stat
-          label="Anamnese"
-          value={`${progress.percent}%`}
-          sub={<Link href="/paciente/anamnese" className="text-emerald-700 hover:underline">Abrir</Link>}
-          icon={<ClipboardList className="h-5 w-5" />}
+          label="Exames enviados"
+          value={examCount}
+          sub={
+            <Link href="/paciente/anamnese#exames" className="text-emerald-700 hover:underline">
+              Enviar exame
+            </Link>
+          }
+          icon={<Paperclip className="h-5 w-5" />}
           tone="yellow"
           className="col-span-2 sm:col-span-1"
         />

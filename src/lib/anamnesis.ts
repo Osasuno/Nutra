@@ -868,15 +868,6 @@ export function omitNutriOnly(data: AnamnesisData): AnamnesisData {
   return out;
 }
 
-/** Somente os campos exclusivos da nutricionista (preservados quando o paciente salva). */
-export function pickNutriOnly(data: AnamnesisData): AnamnesisData {
-  const out: AnamnesisData = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (FIELD_INDEX.get(key)?.nutriOnly) out[key] = value;
-  }
-  return out;
-}
-
 export function parseAnamnesis(json: string | null | undefined): AnamnesisData {
   if (!json) return {};
   try {

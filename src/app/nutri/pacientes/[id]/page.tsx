@@ -87,7 +87,7 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
   const since7 = daysAgo(7);
   const since30 = daysAgo(30);
 
-  const [assessments, energy, plan, logs, messages, notes, anamnesis, logs7, logs30, unread] = await Promise.all([
+  const [assessments, energy, plan, logs, messages, notes, anamnesis, logs7, logs30, unread, exams] = await Promise.all([
     prisma.assessment.findMany({ where: { patientId: id }, orderBy: { date: "asc" } }),
     prisma.energyCalculation.findFirst({ where: { patientId: id }, orderBy: { createdAt: "desc" } }),
     prisma.mealPlan.findFirst({ where: { patientId: id, isActive: true }, include: { meals: { include: { items: true } } } }),
@@ -103,6 +103,7 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
     prisma.mealLog.count({ where: { patientId: id, date: { gte: since7 } } }),
     prisma.mealLog.count({ where: { patientId: id, date: { gte: since30 } } }),
     prisma.message.count({ where: { patientId: id, readAt: null, senderId: { not: user.id } } }),
+    prisma.examFile.count({ where: { patientId: id } }),
   ]);
   const current = new Date(now());
   const [appointmentRows, schedule] = await Promise.all([
@@ -234,6 +235,12 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
               <span className="text-slate-500">Mensagens não lidas</span>
               <span className="font-semibold">{unread}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <Link href={`${base}/anamnese#exames`} className="text-slate-500 hover:text-emerald-700 hover:underline">
+                Exames enviados
+              </Link>
+              <span className="font-semibold">{exams}</span>
+            </div>
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-slate-500">Anamnese preenchida</span>
@@ -277,7 +284,7 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
               <EmptyState
                 className="border-none py-6"
                 title="Anamnese ainda não preenchida"
-                description="Preencha durante a consulta ou peça ao paciente para responder pelo app antes."
+                description="Preencha durante a consulta. O paciente vê a anamnese pelo app e pode enviar exames antes."
               />
             )}
           </CardBody>
