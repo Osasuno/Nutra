@@ -7,7 +7,7 @@ import { Alert, Button, Card, CardBody, CardHeader, Field, Input, Select, Textar
 import { api } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
 import { prepareImage } from "@/lib/image";
-import { FOLLOWED_PLAN, MEAL_TYPES, MOODS } from "@/lib/meal-log";
+import { FOLLOWED_PLAN, MEAL_TYPES, MOODS, PHOTO_DAYS_AFTER_FEEDBACK, PHOTO_DAYS_WITHOUT_FEEDBACK } from "@/lib/meal-log";
 
 function nowLocal() {
   const d = new Date();
@@ -186,6 +186,10 @@ export function MealLogForm({ patientId }: { patientId: string }) {
               className="hidden"
               onChange={(e) => choosePhoto(e.target.files?.[0] ?? null)}
             />
+            <p className="mt-1.5 max-w-xs text-xs text-slate-500">
+              A foto fica guardada até {PHOTO_DAYS_AFTER_FEEDBACK} dias depois do feedback da sua nutricionista, ou{" "}
+              {PHOTO_DAYS_WITHOUT_FEEDBACK} dias se ela ainda não comentou. O registro e o feedback continuam no diário.
+            </p>
           </div>
 
           <Field label="O que você comeu?" htmlFor="ml-desc">

@@ -377,7 +377,7 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
                       />
                     ) : (
                       <div className="flex aspect-square items-center justify-center bg-slate-50 p-2 text-center text-xs text-slate-500">
-                        {log.description?.slice(0, 80) || "Sem foto"}
+                        {log.description?.slice(0, 80) || (log.photoRemovedAt ? "Foto removida" : "Sem foto")}
                       </div>
                     )}
                     <div className="px-2 py-1.5">

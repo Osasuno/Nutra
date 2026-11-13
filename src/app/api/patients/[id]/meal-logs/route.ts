@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
+import { after } from "next/server";
 import { ApiError, apiPatientAccess, route } from "@/lib/api";
 import { FOLLOWED_PLAN, MEAL_TYPES, MOODS } from "@/lib/meal-log";
-import { deleteUpload, saveImage } from "@/lib/uploads";
+import { deleteUpload, purgeExpiredPhotos, saveImage } from "@/lib/uploads";
 import { z } from "@/lib/validation";
 
 const scale = z.preprocess(
@@ -60,6 +61,9 @@ export const POST = route(async (request: Request, ctx: RouteContext<"/api/patie
       data: { patientId: id, ...data, date, photoPath },
       select: { id: true },
     });
+    // Depois da resposta: apaga as fotos que passaram do prazo de guarda. Uma falha aqui
+    // não afeta o registro que acabou de ser salvo.
+    after(() => purgeExpiredPhotos().catch((error) => console.error("Limpeza de fotos do diário falhou:", error)));
     return Response.json(log, { status: 201 });
   } catch (error) {
     await deleteUpload(photoPath);

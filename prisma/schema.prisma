@@ -265,6 +265,8 @@ model MealLog {
   /// "OTIMO" | "BOM" | "AJUSTAR"
   feedbackRating String?
   feedbackAt     DateTime?
+  /// Quando a foto foi apagada pelo prazo de guarda (o registro continua). Ver src/lib/meal-log.ts.
+  photoRemovedAt DateTime?
   createdAt      DateTime  @default(now())
 
   @@index([patientId, date])

@@ -109,6 +109,7 @@ src/
 - Senhas com bcrypt; sessão em JWT assinado num cookie `httpOnly` e `SameSite=Lax`.
 - Toda leitura e escrita verifica se o paciente pertence à nutricionista logada (ou se é o próprio paciente com vínculo ativo).
 - Fotos do diário ficam no banco (tabela `Photo`), são reduzidas no navegador antes do envio e só são servidas a quem tem acesso; o tipo do arquivo é conferido pelo conteúdo.
+- Cada foto do diário é apagada 7 dias depois do feedback da nutricionista, ou 30 dias depois do envio se ela não comentou (`purgeExpiredPhotos` em `src/lib/uploads.ts`, que roda após cada registro novo e cada feedback). O registro, a descrição e o feedback continuam. Os exames não têm prazo.
 - As tabelas ficam no schema `nutra`, fora do schema `public` que o Supabase expõe pela API REST dele.
 - Campos exclusivos da nutricionista (exame físico, diagnóstico, conduta, anotações) não são enviados ao paciente.
 - O paciente dá consentimento LGPD no cadastro. A exclusão do prontuário apaga dados e fotos.

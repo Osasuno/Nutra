@@ -1,7 +1,8 @@
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ApiError, apiPatientAccess, readJson, route } from "@/lib/api";
 import { FEEDBACK_RATINGS } from "@/lib/meal-log";
-import { deleteUpload } from "@/lib/uploads";
+import { deleteUpload, purgeExpiredPhotos } from "@/lib/uploads";
 import { z } from "@/lib/validation";
 
 async function loadLog(logId: string) {
@@ -30,6 +31,8 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/meal
       feedbackAt: hasFeedback ? new Date() : null,
     },
   });
+  // O feedback inicia o prazo de 7 dias desta foto; aproveita para apagar as que venceram.
+  after(() => purgeExpiredPhotos().catch((error) => console.error("Limpeza de fotos do diário falhou:", error)));
   return Response.json({ ok: true });
 });
 

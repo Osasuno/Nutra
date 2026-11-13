@@ -1,9 +1,9 @@
-import { MessageSquareQuote } from "lucide-react";
+import { ImageOff, MessageSquareQuote } from "lucide-react";
 import { DeleteButton } from "@/components/DeleteButton";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import type { MealLog } from "@/generated/prisma/client";
-import { fmtDateTime } from "@/lib/format";
-import { followedLabel, ratingInfo } from "@/lib/meal-log";
+import { fmtDate, fmtDateTime } from "@/lib/format";
+import { followedLabel, photoExpiresAt, ratingInfo } from "@/lib/meal-log";
 import { FeedbackForm } from "./FeedbackForm";
 
 /** Lista do diário. Para a nutricionista mostra o formulário de feedback. */
@@ -44,12 +44,20 @@ export function MealLogList({
                     loading="lazy"
                   />
                 </a>
+              ) : log.photoRemovedAt ? (
+                <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500 sm:w-56 sm:flex-col sm:justify-center sm:border-b-0 sm:border-r sm:px-3 sm:text-center">
+                  <ImageOff className="h-5 w-5 shrink-0 text-slate-400" />
+                  <span>Foto removida em {fmtDate(log.photoRemovedAt)}. As fotos ficam guardadas por tempo limitado.</span>
+                </div>
               ) : null}
               <div className="flex-1 space-y-3 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-slate-900">{log.mealType}</p>
                     <p className="text-xs text-slate-500">{fmtDateTime(log.date)}</p>
+                    {viewer === "NUTRITIONIST" && log.photoPath ? (
+                      <p className="text-xs text-slate-500">Foto guardada até {fmtDate(photoExpiresAt(log))}</p>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     {viewer === "NUTRITIONIST" && !hasFeedback ? <Badge tone="yellow">Aguardando feedback</Badge> : null}

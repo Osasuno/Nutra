@@ -2,6 +2,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { ApiError } from "./api";
 import { prisma } from "./db";
+import { PHOTO_DAYS_AFTER_FEEDBACK, PHOTO_DAYS_WITHOUT_FEEDBACK } from "./meal-log";
+import { DAY_MS } from "./time";
 
 // Fotos do diário alimentar. Ficam no banco (tabela Photo), funcionam em hospedagens
 // sem disco persistente e só são servidas por /api/uploads/[nome] depois de checar
@@ -51,4 +53,33 @@ export async function deleteUpload(name: string | null | undefined) {
 export async function deleteUploads(names: (string | null | undefined)[]) {
   const ids = names.filter((n): n is string => Boolean(n && UPLOAD_NAME_RE.test(n)));
   if (ids.length) await prisma.photo.deleteMany({ where: { id: { in: ids } } });
+}
+
+/**
+ * Apaga as fotos do diário que passaram do prazo (ver photoExpiresAt em meal-log.ts), de todos
+ * os pacientes. O registro continua, sem a foto e com photoRemovedAt. Roda depois de cada registro
+ * novo no diário e de cada feedback, porque o plano gratuito do Render não tem agendador; o lote
+ * limita o trabalho de cada vez.
+ */
+export async function purgeExpiredPhotos(at = new Date()): Promise<number> {
+  const logs = await prisma.mealLog.findMany({
+    where: {
+      photoPath: { not: null },
+      OR: [
+        { feedbackAt: { lt: new Date(at.getTime() - PHOTO_DAYS_AFTER_FEEDBACK * DAY_MS) } },
+        { feedbackAt: null, createdAt: { lt: new Date(at.getTime() - PHOTO_DAYS_WITHOUT_FEEDBACK * DAY_MS) } },
+      ],
+    },
+    select: { id: true, photoPath: true },
+    take: 200,
+  });
+  if (!logs.length) return 0;
+  await prisma.$transaction([
+    prisma.mealLog.updateMany({
+      where: { id: { in: logs.map((l) => l.id) } },
+      data: { photoPath: null, photoRemovedAt: at },
+    }),
+    prisma.photo.deleteMany({ where: { id: { in: logs.flatMap((l) => (l.photoPath ? [l.photoPath] : [])) } } }),
+  ]);
+  return logs.length;
 }
