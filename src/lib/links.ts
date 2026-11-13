@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes, randomInt } from "node:crypto";
 import { prisma } from "./db";
 import { ApiError } from "./api";
+import { firstName, pushAfter } from "./push";
 
 // Regras de vínculo entre paciente (conta) e nutricionista.
 
@@ -77,21 +78,27 @@ export async function connectByCode(userId: string, code: string) {
   const existing = await prisma.patient.findUnique({
     where: { nutritionistId_userId: { nutritionistId: profile.userId, userId: user.id } },
   });
-  if (existing) {
-    return prisma.patient.update({ where: { id: existing.id }, data: { status: "ACTIVE" } });
-  }
-  return prisma.patient.create({
-    data: {
-      nutritionistId: profile.userId,
-      userId: user.id,
-      status: "ACTIVE",
-      name: user.name,
-      email: user.email,
-      phone: user.phone ?? null,
-      birthDate: user.birthDate ?? null,
-      sex: user.sex ?? null,
-    },
+  const link = existing
+    ? await prisma.patient.update({ where: { id: existing.id }, data: { status: "ACTIVE" } })
+    : await prisma.patient.create({
+        data: {
+          nutritionistId: profile.userId,
+          userId: user.id,
+          status: "ACTIVE",
+          name: user.name,
+          email: user.email,
+          phone: user.phone ?? null,
+          birthDate: user.birthDate ?? null,
+          sex: user.sex ?? null,
+        },
+      });
+  pushAfter(link.nutritionistId, {
+    title: "Novo paciente",
+    body: `${firstName(user.name)} entrou com o seu código de convite.`,
+    url: `/nutri/pacientes/${link.id}`,
+    tag: `paciente-${link.id}`,
   });
+  return link;
 }
 
 /** Solicitação pelo diretório: fica pendente até a nutricionista aceitar. */
@@ -107,25 +114,31 @@ export async function requestLink(userId: string, nutritionistId: string, messag
     where: { nutritionistId_userId: { nutritionistId, userId: user.id } },
   });
   if (existing?.status === "ACTIVE") throw new ApiError(409, "Você já está vinculado a esta nutricionista.");
-  if (existing) {
-    return prisma.patient.update({
-      where: { id: existing.id },
-      data: { status: "PENDING", requestMessage: message },
-    });
-  }
-  return prisma.patient.create({
-    data: {
-      nutritionistId,
-      userId: user.id,
-      status: "PENDING",
-      requestMessage: message,
-      name: user.name,
-      email: user.email,
-      phone: user.phone ?? null,
-      birthDate: user.birthDate ?? null,
-      sex: user.sex ?? null,
-    },
+  const link = existing
+    ? await prisma.patient.update({
+        where: { id: existing.id },
+        data: { status: "PENDING", requestMessage: message },
+      })
+    : await prisma.patient.create({
+        data: {
+          nutritionistId,
+          userId: user.id,
+          status: "PENDING",
+          requestMessage: message,
+          name: user.name,
+          email: user.email,
+          phone: user.phone ?? null,
+          birthDate: user.birthDate ?? null,
+          sex: user.sex ?? null,
+        },
+      });
+  pushAfter(nutritionistId, {
+    title: "Pedido de acompanhamento",
+    body: `${firstName(user.name)} quer ser seu paciente. Toque para responder.`,
+    url: "/nutri",
+    tag: `pedido-${link.id}`,
   });
+  return link;
 }
 
 export async function findInvite(token: string) {
@@ -150,7 +163,7 @@ export async function acceptInvite(userId: string, token: string) {
     throw new ApiError(409, "Sua conta já está vinculada a esta nutricionista. Peça para ela verificar o cadastro.");
   }
 
-  return prisma.patient.update({
+  const link = await prisma.patient.update({
     where: { id: invite.id },
     data: {
       userId: user.id,
@@ -162,4 +175,11 @@ export async function acceptInvite(userId: string, token: string) {
       sex: invite.sex ?? user.sex ?? null,
     },
   });
+  pushAfter(link.nutritionistId, {
+    title: "Convite aceito",
+    body: `${firstName(invite.name)} criou a conta pelo seu convite.`,
+    url: `/nutri/pacientes/${link.id}`,
+    tag: `paciente-${link.id}`,
+  });
+  return link;
 }

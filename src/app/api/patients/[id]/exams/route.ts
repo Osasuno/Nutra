@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ApiError, apiPatientAccess, route } from "@/lib/api";
 import { saveExam } from "@/lib/exams";
+import { firstName, pushAfter } from "@/lib/push";
 
 /** Envia um exame (PDF ou imagem). O paciente envia; a nutricionista também pode anexar. */
 export const POST = route(async (request: Request, ctx: RouteContext<"/api/patients/[id]/exams">) => {
@@ -20,7 +21,7 @@ export const POST = route(async (request: Request, ctx: RouteContext<"/api/patie
 
   const exam = await saveExam(file, { patientId: id, uploadedById: user.id, description });
 
-  // Aviso no chat para a nutricionista ver que chegou exame novo.
+  // Aviso no chat e notificação para a nutricionista ver que chegou exame novo.
   if (as === "PATIENT") {
     await prisma.message.create({
       data: {
@@ -28,6 +29,12 @@ export const POST = route(async (request: Request, ctx: RouteContext<"/api/patie
         senderId: user.id,
         content: `📎 Enviei um exame: ${exam.fileName}${description ? ` (${description})` : ""}. Está na aba Anamnese.`,
       },
+    });
+    pushAfter(patient.nutritionistId, {
+      title: `${firstName(patient.name)} enviou um exame`,
+      body: "Toque para ver na anamnese.",
+      url: `/nutri/pacientes/${id}/anamnese#exames`,
+      tag: `exame-${id}`,
     });
   }
   await prisma.patient.update({ where: { id }, data: { updatedAt: new Date() } });

@@ -2,11 +2,15 @@ import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ApiError, apiPatientAccess, readJson, route } from "@/lib/api";
 import { FEEDBACK_RATINGS } from "@/lib/meal-log";
+import { firstName, pushAfter } from "@/lib/push";
 import { deleteUpload, purgeExpiredPhotos } from "@/lib/uploads";
 import { z } from "@/lib/validation";
 
 async function loadLog(logId: string) {
-  const log = await prisma.mealLog.findUnique({ where: { id: logId }, select: { id: true, patientId: true, photoPath: true } });
+  const log = await prisma.mealLog.findUnique({
+    where: { id: logId },
+    select: { id: true, patientId: true, photoPath: true, feedbackAt: true, mealType: true },
+  });
   if (!log) throw new ApiError(404, "Registro não encontrado.");
   return log;
 }
@@ -20,7 +24,7 @@ const feedbackSchema = z.object({
 export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/meal-logs/[logId]">) => {
   const { logId } = await ctx.params;
   const log = await loadLog(logId);
-  await apiPatientAccess(log.patientId, "NUTRITIONIST");
+  const { user, patient } = await apiPatientAccess(log.patientId, "NUTRITIONIST");
   const data = await readJson(request, feedbackSchema);
   const hasFeedback = Boolean(data.feedback || data.feedbackRating);
   await prisma.mealLog.update({
@@ -33,6 +37,15 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/meal
   });
   // O feedback inicia o prazo de 7 dias desta foto; aproveita para apagar as que venceram.
   after(() => purgeExpiredPhotos().catch((error) => console.error("Limpeza de fotos do diário falhou:", error)));
+  // Só o primeiro feedback avisa o paciente (editar depois não notifica de novo).
+  if (hasFeedback && !log.feedbackAt) {
+    pushAfter(patient.status === "ACTIVE" ? patient.userId : null, {
+      title: `${firstName(user.name)} comentou sua refeição`,
+      body: `${log.mealType}: toque para ver o feedback.`,
+      url: "/paciente/diario",
+      tag: "diario",
+    });
+  }
   return Response.json({ ok: true });
 });
 

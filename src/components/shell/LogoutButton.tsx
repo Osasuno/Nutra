@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LogOut } from "lucide-react";
+import { unsubscribeThisDevice } from "@/components/pwa/usePush";
 import { api } from "@/lib/client-api";
 
 export function LogoutButton() {
@@ -14,6 +15,8 @@ export function LogoutButton() {
       disabled={loading}
       onClick={async () => {
         setLoading(true);
+        // Aparelho compartilhado: quem sai deixa de receber notificações aqui (no máximo 2 s de espera).
+        await Promise.race([unsubscribeThisDevice().catch(() => undefined), new Promise((r) => setTimeout(r, 2000))]);
         await api("/api/auth/logout", { method: "POST" }).catch(() => undefined);
         router.replace("/login");
         router.refresh();

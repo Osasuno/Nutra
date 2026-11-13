@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { NotificationsBanner } from "@/components/pwa/NotificationsCard";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, Camera, MessageCircle, UserPlus, Users } from "lucide-react";
@@ -55,6 +56,9 @@ async function Dashboard() {
 
   return (
     <>
+      <div className="mb-6 empty:hidden">
+        <NotificationsBanner role="NUTRITIONIST" />
+      </div>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat label="Pacientes ativos" value={active.length} icon={<Users className="h-5 w-5" />} tone="green" />
         <Stat

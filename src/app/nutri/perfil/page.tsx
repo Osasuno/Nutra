@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { KeyRound, Ticket, UserCog } from "lucide-react";
 import { PasswordForm } from "@/components/profile/PasswordForm";
 import { InviteCodeCard, NutriProfileForm } from "@/components/profile/NutriProfileForm";
+import { NotificationsCard } from "@/components/pwa/NotificationsCard";
 import { Card, CardBody, CardHeader, PageHeader, PageSkeleton } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
@@ -56,6 +57,7 @@ async function Content() {
             <InviteCodeCard code={profile.inviteCode} />
           </CardBody>
         </Card>
+        <NotificationsCard role="NUTRITIONIST" />
         <Card>
           <CardHeader title="Senha" icon={<KeyRound className="h-5 w-5" />} />
           <CardBody>

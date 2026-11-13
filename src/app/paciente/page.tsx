@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { LinkActionButton } from "@/components/patient/ConnectForms";
 import { NoLink } from "@/components/patient/NoLink";
+import { NotificationsBanner } from "@/components/pwa/NotificationsCard";
 import { Alert, Avatar, Badge, ButtonLink, Card, CardBody, CardHeader, PageSkeleton, Stat } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { getPatientLinks } from "@/lib/dal";
@@ -114,6 +115,8 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
       </div>
 
       {typeof aviso === "string" ? <Alert tone="yellow">{aviso}</Alert> : null}
+
+      <NotificationsBanner role="PATIENT" />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <Stat

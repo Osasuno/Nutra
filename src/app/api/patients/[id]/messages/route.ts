@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ApiError, apiPatientAccess, readJson, route } from "@/lib/api";
 import { toChatMessage } from "@/lib/chat";
+import { firstName, pushAfter } from "@/lib/push";
 import { rateLimit } from "@/lib/rate-limit";
 import { z } from "@/lib/validation";
 
@@ -42,7 +43,7 @@ const schema = z.object({ content: z.string().trim().min(1, { error: "Escreva um
 
 export const POST = route(async (request: Request, ctx: RouteContext<"/api/patients/[id]/messages">) => {
   const { id } = await ctx.params;
-  const { user, patient } = await apiPatientAccess(id);
+  const { user, patient, as } = await apiPatientAccess(id);
   if (!patient.userId) throw new ApiError(400, "O paciente ainda não criou a conta. Envie o convite primeiro.");
   if (patient.status !== "ACTIVE") throw new ApiError(400, "O acompanhamento não está ativo.");
   const limit = rateLimit(`msg:${user.id}`, 30, 60 * 1000);
@@ -53,5 +54,21 @@ export const POST = route(async (request: Request, ctx: RouteContext<"/api/patie
     data: { patientId: id, senderId: user.id, content },
     include,
   });
+  // A notificação não mostra o texto da mensagem (aparece na tela de bloqueio).
+  if (as === "NUTRITIONIST") {
+    pushAfter(patient.userId, {
+      title: `Mensagem de ${firstName(user.name)}`,
+      body: "Toque para abrir a conversa.",
+      url: "/paciente/chat",
+      tag: `chat-${id}`,
+    });
+  } else {
+    pushAfter(patient.nutritionistId, {
+      title: `Mensagem de ${firstName(patient.name)}`,
+      body: "Toque para abrir a conversa.",
+      url: `/nutri/pacientes/${id}/chat`,
+      tag: `chat-${id}`,
+    });
+  }
   return Response.json({ message: toChatMessage(message) }, { status: 201 });
 });

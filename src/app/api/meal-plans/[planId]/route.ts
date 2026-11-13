@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ApiError, apiUser, readJson, route } from "@/lib/api";
 import { mealPlanSchema } from "@/lib/meal-plan";
+import { firstName, pushAfter } from "@/lib/push";
 import { z } from "@/lib/validation";
 
 async function ownPlan(planId: string, nutritionistId: string) {
@@ -66,6 +67,15 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/meal
     prisma.mealPlan.update({ where: { id: plan.id }, data: { isActive: active } }),
     prisma.patient.update({ where: { id: plan.patientId }, data: { updatedAt: new Date() } }),
   ]);
+  if (active) {
+    const patient = await prisma.patient.findUnique({ where: { id: plan.patientId }, select: { userId: true, status: true } });
+    pushAfter(patient?.status === "ACTIVE" ? patient.userId : null, {
+      title: "Plano alimentar liberado",
+      body: `${firstName(user.name)} liberou um plano novo para você. Toque para ver.`,
+      url: "/paciente/plano",
+      tag: "plano",
+    });
+  }
   return Response.json({ ok: true });
 });
 

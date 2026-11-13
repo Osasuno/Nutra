@@ -28,6 +28,7 @@ model User {
   updatedAt         DateTime  @updatedAt
 
   passwordResets         PasswordReset[]
+  pushSubscriptions      PushSubscription[]
   nutritionistProfile    NutritionistProfile?
   patientsAsNutritionist Patient[]            @relation("NutritionistPatients")
   patientRecords         Patient[]            @relation("PatientUser")
@@ -303,6 +304,22 @@ model ClinicalNote {
   createdAt DateTime @default(now())
 
   @@index([patientId, createdAt])
+}
+
+/// Aparelho que aceitou receber notificações (Web Push). Um por navegador/app instalado.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Endereço do serviço de push do navegador (Google, Apple, Mozilla ou Microsoft).
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 /// Link de nova senha que a nutricionista gera para um paciente. Guarda só o hash do token;

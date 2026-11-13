@@ -4,6 +4,7 @@ import { KeyRound, Stethoscope, User } from "lucide-react";
 import { CodeConnectForm, LinkActionButton } from "@/components/patient/ConnectForms";
 import { PasswordForm } from "@/components/profile/PasswordForm";
 import { PatientProfileForm } from "@/components/profile/PatientProfileForm";
+import { NotificationsCard } from "@/components/pwa/NotificationsCard";
 import { Avatar, ButtonLink, Card, CardBody, CardHeader, PageHeader, PageSkeleton } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { getPatientLinks } from "@/lib/dal";
@@ -41,6 +42,7 @@ async function Content() {
             />
           </CardBody>
         </Card>
+        <NotificationsCard role="PATIENT" />
         <Card>
           <CardHeader title="Senha" icon={<KeyRound className="h-5 w-5" />} />
           <CardBody>

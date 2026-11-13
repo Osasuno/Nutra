@@ -37,6 +37,17 @@ const ICONS: Record<NavIcon, typeof Users> = {
 
 type Counts = { unreadMessages?: number; pendingRequests?: number; pendingAppointments?: number };
 
+/**
+ * Bolinha no ícone do app instalado com o total pendente (mesma conta de badgeTotal, no
+ * servidor). Some quando não há nada. Onde não existe (Android, navegador comum), é ignorado.
+ */
+function syncAppBadge(c: Counts) {
+  const total = (c.unreadMessages ?? 0) + (c.pendingRequests ?? 0) + (c.pendingAppointments ?? 0);
+  const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+  if (!nav.setAppBadge || !nav.clearAppBadge) return;
+  void (total > 0 ? nav.setAppBadge(total) : nav.clearAppBadge()).catch(() => undefined);
+}
+
 function isActive(item: NavItem, pathname: string | null) {
   if (!pathname) return false;
   if (item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`)) return true;
@@ -100,7 +111,11 @@ export function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?:
       if (document.visibilityState !== "visible") return;
       try {
         const res = await fetch("/api/notifications", { cache: "no-store" });
-        if (res.ok && !cancelled) setCounts(await res.json());
+        if (res.ok && !cancelled) {
+          const data: Counts = await res.json();
+          setCounts(data);
+          syncAppBadge(data);
+        }
       } catch {
         // sem conexão: tenta de novo no próximo ciclo
       }

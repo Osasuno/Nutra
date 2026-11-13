@@ -8,6 +8,7 @@ import {
   notifyChat,
   withAgendaLock,
 } from "@/lib/appointments";
+import { firstName, pushAfter } from "@/lib/push";
 import { MODES, OPEN_STATUSES, shortWhen } from "@/lib/schedule";
 import { optionalText, optionalUrl, z } from "@/lib/validation";
 
@@ -77,6 +78,12 @@ export const POST = route(async (request: Request) => {
       );
       return appointment;
     });
+    pushAfter(link.nutritionistId, {
+      title: `${firstName(user.name)} pediu uma consulta`,
+      body: `${shortWhen(slot.startsAt)} (${modeText(body.mode)})`,
+      url: "/nutri/agenda",
+      tag: `consulta-${created.id}`,
+    });
     return Response.json(created, { status: 201 });
   }
 
@@ -113,6 +120,12 @@ export const POST = route(async (request: Request) => {
       `📅 Agendei sua consulta ${modeText(body.mode)} para ${shortWhen(startsAt)}. Os detalhes estão em Consultas.`,
     );
     return appointment;
+  });
+  pushAfter(patient.userId, {
+    title: "Consulta agendada",
+    body: `${shortWhen(startsAt)} (${modeText(body.mode)})`,
+    url: "/paciente/consultas",
+    tag: `consulta-${created.id}`,
   });
   return Response.json(created, { status: 201 });
 });

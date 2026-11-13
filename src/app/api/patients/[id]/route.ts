@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ApiError, apiPatientAccess, readJson, route } from "@/lib/api";
 import { ensureNoOtherActiveLink, generateInviteToken } from "@/lib/links";
+import { firstName, pushAfter } from "@/lib/push";
 import { patientDataSchema } from "@/lib/schemas";
 import { deleteUploads } from "@/lib/uploads";
 import { z } from "@/lib/validation";
@@ -16,7 +17,7 @@ const patchSchema = z.discriminatedUnion("action", [
 
 export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/patients/[id]">) => {
   const { id } = await ctx.params;
-  const { patient } = await apiPatientAccess(id, "NUTRITIONIST");
+  const { user, patient } = await apiPatientAccess(id, "NUTRITIONIST");
   const body = await readJson(request, patchSchema);
 
   switch (body.action) {
@@ -24,6 +25,12 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/pati
       if (patient.status !== "PENDING") throw new ApiError(400, "Esta solicitação já foi processada.");
       if (patient.userId) await ensureNoOtherActiveLink(patient.userId, patient.nutritionistId);
       await prisma.patient.update({ where: { id }, data: { status: "ACTIVE" } });
+      pushAfter(patient.userId, {
+        title: "Pedido aceito",
+        body: `${firstName(user.name)} aceitou seu pedido de acompanhamento.`,
+        url: "/paciente",
+        tag: "vinculo",
+      });
       break;
     }
     case "reject": {

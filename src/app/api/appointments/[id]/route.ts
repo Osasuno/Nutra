@@ -8,6 +8,7 @@ import {
   notifyChat,
   withAgendaLock,
 } from "@/lib/appointments";
+import { firstName, pushAfter, type PushNotice } from "@/lib/push";
 import { MODES, OPEN_STATUSES, durationMinutes, patientCanChange, shortWhen } from "@/lib/schedule";
 import { optionalText, optionalUrl, z } from "@/lib/validation";
 
@@ -54,6 +55,12 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/appo
   const when = shortWhen(appointment.startsAt);
   const settings = await getScheduleSettings(appointment.nutritionistId);
   const patient = appointment.patient;
+  // Notificação para o outro lado (só depois que a mudança foi gravada).
+  const tag = `consulta-${id}`;
+  const toPatient = (notice: Omit<PushNotice, "url" | "tag">) =>
+    pushAfter(patient.status === "ACTIVE" ? patient.userId : null, { ...notice, url: "/paciente/consultas", tag });
+  const toNutri = (notice: Omit<PushNotice, "url" | "tag">) =>
+    pushAfter(appointment.nutritionistId, { ...notice, url: "/nutri/agenda", tag });
 
   switch (body.action) {
     case "confirm": {
@@ -69,6 +76,7 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/appo
         const detail = appointment.mode === "ONLINE" ? (meetingUrl ? ` Link: ${meetingUrl}` : "") : location ? ` Local: ${location}` : "";
         await notifyChat(tx, patient, user.id, `✅ Consulta confirmada: ${when} (${modeText(appointment.mode)}).${detail}`);
       });
+      toPatient({ title: "Consulta confirmada", body: `${when} (${modeText(appointment.mode)})` });
       break;
     }
 
@@ -111,6 +119,8 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/appo
             : `🔁 Reagendei sua consulta de ${when} para ${shortWhen(range.startsAt)} (${modeText(appointment.mode)}).`,
         );
       });
+      if (isPatient) toNutri({ title: `${firstName(patient.name)} pediu para reagendar`, body: `Novo horário: ${shortWhen(range.startsAt)}` });
+      else toPatient({ title: "Consulta reagendada", body: `${shortWhen(range.startsAt)} (${modeText(appointment.mode)})` });
       break;
     }
 
@@ -141,6 +151,9 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/appo
             : `❌ Cancelei a consulta de ${when}.${reason}`,
         );
       });
+      if (isPatient) toNutri({ title: `${firstName(patient.name)} cancelou a consulta`, body: when });
+      else if (declined) toPatient({ title: "Horário não disponível", body: `Escolha outro horário no lugar de ${when}.` });
+      else toPatient({ title: "Consulta cancelada", body: when });
       break;
     }
 
@@ -171,6 +184,7 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/appo
           await notifyChat(tx, patient, user.id, `ℹ️ Atualizei os detalhes da consulta de ${when} (${modeText(mode)}).${detail}`);
         }
       });
+      if (appointment.status === "CONFIRMED") toPatient({ title: "Consulta atualizada", body: `${when} (${modeText(mode)})` });
       break;
     }
   }
