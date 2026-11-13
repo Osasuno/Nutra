@@ -11,7 +11,7 @@ export type { FoodResult, FoodSource };
 
 const zero = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
-function parseExtra(json: string): Record<string, number | null> {
+export function parseExtra(json: string): Record<string, number | null> {
   try {
     const value = JSON.parse(json);
     return value && typeof value === "object" ? value : {};

@@ -4,8 +4,12 @@ import { MealPlanEditor, type EditorPlan } from "@/components/plans/MealPlanEdit
 import { PageSkeleton } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { requireNutriPatient } from "@/lib/dal";
+import { hasMicros } from "@/lib/dri";
 import type { FoodSource } from "@/lib/food-types";
+import { parseExtra } from "@/lib/foods";
+import { ageFrom } from "@/lib/format";
 import { newKey } from "@/lib/keys";
+import { parseSubstitutes } from "@/lib/substitutes";
 
 export default function PlanEditorPage(props: PageProps<"/nutri/pacientes/[id]/plano/[planId]">) {
   return (
@@ -17,7 +21,7 @@ export default function PlanEditorPage(props: PageProps<"/nutri/pacientes/[id]/p
 
 async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/plano/[planId]">["params"] }) {
   const { id, planId } = await params;
-  await requireNutriPatient(id);
+  const { user, patient } = await requireNutriPatient(id);
   const [plan, energy] = await Promise.all([
     prisma.mealPlan.findFirst({
       where: { id: planId, patientId: id },
@@ -26,6 +30,21 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
     prisma.energyCalculation.findFirst({ where: { patientId: id }, orderBy: { createdAt: "desc" } }),
   ]);
   if (!plan) notFound();
+
+  // Micronutrientes dos alimentos do plano (TACO e os personalizados desta nutricionista).
+  const foodIds = [...new Set(plan.meals.flatMap((m) => m.items.flatMap((i) => (i.foodId ? [i.foodId] : []))))];
+  const foods = foodIds.length
+    ? await prisma.food.findMany({
+        where: { id: { in: foodIds }, OR: [{ source: "TACO" }, { source: "CUSTOM", ownerId: user.id }] },
+        select: { id: true, extra: true },
+      })
+    : [];
+  const micros = new Map(
+    foods.flatMap((f) => {
+      const extra = parseExtra(f.extra);
+      return hasMicros(extra) ? [[f.id, extra] as const] : [];
+    }),
+  );
 
   const initial: EditorPlan = {
     title: plan.title,
@@ -57,6 +76,8 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
         fiber100: item.fiber100,
         sodium100: item.sodium100,
         notes: item.notes ?? "",
+        substitutes: parseSubstitutes(item.substitutes),
+        extra: item.foodId ? (micros.get(item.foodId) ?? null) : null,
       })),
     })),
   };
@@ -68,6 +89,8 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
       initial={initial}
       initialActive={plan.isActive}
       updatedAt={plan.updatedAt.toISOString()}
+      patientSex={patient.sex}
+      patientAge={ageFrom(patient.birthDate)}
       latestEnergy={
         energy
           ? { targetKcal: energy.targetKcal, proteinG: energy.proteinG, carbsG: energy.carbsG, fatG: energy.fatG }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
+  ArrowLeftRight,
   ArrowUp,
   CheckCircle2,
   Copy,
@@ -31,8 +32,12 @@ import { SOURCE_LABEL, type FoodResult, type FoodSource } from "@/lib/food-types
 import { fmt, fmtDateTime } from "@/lib/format";
 import { newKey } from "@/lib/keys";
 import { itemTotals, macroSplit, mealTotals, planTotals, sumTotals, type NutrientTotals } from "@/lib/meal-math";
+import { hasMicros } from "@/lib/dri";
 import { measureGrams, measureText, qtyForGrams, type ItemMeasure } from "@/lib/measures";
+import { recalcSubstitutes, substituteMeasureText, type Per100, type SubstituteSet } from "@/lib/substitutes";
 import { FoodPickerModal, type PickedFood } from "./FoodPickerModal";
+import { MicronutrientsCard } from "./MicronutrientsCard";
+import { SubstitutesModal } from "./SubstitutesModal";
 
 export type EditorItem = {
   key: string;
@@ -50,6 +55,10 @@ export type EditorItem = {
   fiber100: number;
   sodium100: number;
   notes: string;
+  /** Opções de troca ("ou batata"), com porção equivalente. */
+  substitutes: SubstituteSet | null;
+  /** Micronutrientes por 100 g (só para o painel; não são gravados no item). */
+  extra: Record<string, number | null> | null;
 };
 
 export type EditorMeal = { key: string; name: string; time: string; notes: string; items: EditorItem[] };
@@ -67,7 +76,7 @@ export type EditorPlan = {
 // Linha de alimento. Card estreito: nome e lixeira em cima, gramas e medida, depois os
 // nutrientes. Card com 36rem ou mais (@xl): colunas, como uma tabela.
 const ITEM_GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-4 @xl:grid-cols-[minmax(0,1.2fr)_4.5rem_minmax(0,1fr)_2.75rem_2.5rem_2.5rem_2.5rem_2rem] @xl:items-center @xl:gap-y-0";
+  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-4 @xl:grid-cols-[minmax(0,1fr)_4.5rem_minmax(0,1.3fr)_2.75rem_2.5rem_2.5rem_2.5rem_2rem] @xl:items-center @xl:gap-y-0";
 
 const itemText = (item: EditorItem) => (item.measure ? measureText(item.measure) : item.householdMeasure);
 
@@ -87,9 +96,23 @@ function toPayloadItem(item: EditorItem) {
     fat100: item.fat100,
     fiber100: item.fiber100,
     sodium100: item.sodium100,
+    substitutes: item.substitutes,
     notes: item.notes,
   };
 }
+
+const itemPer100 = (item: EditorItem): Per100 => ({
+  kcal: item.energyKcal100,
+  protein: item.protein100,
+  carbs: item.carbs100,
+  fat: item.fat100,
+  fiber: item.fiber100,
+  sodium: item.sodium100,
+});
+
+/** "ou Batata (1 unidade · 150 g)": as opções de troca numa linha. */
+const substitutesSummary = (set: SubstituteSet) =>
+  set.options.map((o) => `${o.foodName} (${[substituteMeasureText(o), `${fmt(o.quantityG, 0)} g`].filter(Boolean).join(" · ")})`).join(" · ou ");
 
 /** O item como "alimento" para o painel de porção (valores por 100 g gravados no plano). */
 const itemAsFood = (item: EditorItem): FoodResult => ({
@@ -120,6 +143,8 @@ export function MealPlanEditor({
   initialActive,
   latestEnergy,
   updatedAt,
+  patientSex,
+  patientAge,
 }: {
   planId: string;
   patientId: string;
@@ -127,6 +152,9 @@ export function MealPlanEditor({
   initialActive: boolean;
   latestEnergy: { targetKcal: number; proteinG: number; carbsG: number; fatG: number } | null;
   updatedAt: string;
+  /** Para comparar os micronutrientes com a recomendação (DRI). */
+  patientSex: string | null;
+  patientAge: number | null;
 }) {
   const router = useRouter();
   const [plan, setPlan] = useState<EditorPlan>(initial);
@@ -137,6 +165,7 @@ export function MealPlanEditor({
   const [message, setMessage] = useState<{ tone: "green" | "red"; text: string } | null>(null);
   const [pickerMeal, setPickerMeal] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ mealKey: string; itemKey: string } | null>(null);
+  const [subsFor, setSubsFor] = useState<{ mealKey: string; itemKey: string } | null>(null);
   const [removed, setRemoved] = useState<Removed | null>(null);
   // Versão atual do plano para o salvar (e para saber se mudou durante o envio).
   const planRef = useRef(plan);
@@ -166,7 +195,17 @@ export function MealPlanEditor({
   const updateMeal = (key: string, fn: (m: EditorMeal) => EditorMeal) =>
     change((p) => ({ ...p, meals: p.meals.map((m) => (m.key === key ? fn(m) : m)) }));
   const updateItem = (mealKey: string, itemKey: string, patch: Partial<EditorItem>) =>
-    updateMeal(mealKey, (m) => ({ ...m, items: m.items.map((i) => (i.key === itemKey ? { ...i, ...patch } : i)) }));
+    updateMeal(mealKey, (m) => ({
+      ...m,
+      items: m.items.map((i) => {
+        if (i.key !== itemKey) return i;
+        const next = { ...i, ...patch };
+        // Mudou a porção: as substituições automáticas acompanham.
+        return "quantityG" in patch && next.substitutes && !("substitutes" in patch)
+          ? { ...next, substitutes: recalcSubstitutes(next.substitutes, { quantityG: next.quantityG, per100: itemPer100(next) }) }
+          : next;
+      }),
+    }));
 
   const totals = useMemo(() => planTotals(plan.meals), [plan.meals]);
   const split = macroSplit(totals);
@@ -235,6 +274,8 @@ export function MealPlanEditor({
           fiber100: f.per100.fiber,
           sodium100: f.per100.sodium,
           notes: "",
+          substitutes: null,
+          extra: hasMicros(f.extra) ? f.extra : null,
         },
       ],
     }));
@@ -316,6 +357,10 @@ export function MealPlanEditor({
   const editingItem = editing
     ? plan.meals.find((m) => m.key === editing.mealKey)?.items.find((i) => i.key === editing.itemKey) ?? null
     : null;
+  const subsItem = subsFor
+    ? plan.meals.find((m) => m.key === subsFor.mealKey)?.items.find((i) => i.key === subsFor.itemKey) ?? null
+    : null;
+  const allItems = useMemo(() => plan.meals.flatMap((m) => m.items), [plan.meals]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -362,6 +407,7 @@ export function MealPlanEditor({
             onUpdateItem={(itemKey, patch) => updateItem(meal.key, itemKey, patch)}
             onRemoveItem={(itemKey) => removeItem(meal.key, itemKey)}
             onEditItem={(itemKey) => setEditing({ mealKey: meal.key, itemKey })}
+            onSubstitutesItem={(itemKey) => setSubsFor({ mealKey: meal.key, itemKey })}
             onAddFood={() => setPickerMeal(meal.key)}
             onMove={(dir) => moveMeal(index, dir)}
             onDuplicate={() => duplicateMeal(index)}
@@ -399,9 +445,11 @@ export function MealPlanEditor({
         </Card>
       </div>
 
-      <div className="space-y-4 xl:sticky xl:top-20 xl:self-start">
+      {/* Fixa ao lado no computador; rola por dentro quando passa da altura da tela. */}
+      <div className="space-y-4 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-10rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain xl:pb-1">
         <TotalsCard totals={totals} split={split} plan={plan} />
         <TargetsCard plan={plan} latestEnergy={latestEnergy} onChange={change} />
+        <MicronutrientsCard items={allItems} totals={totals} sex={patientSex} age={patientAge} />
       </div>
 
       {/* Espaço para a barra fixa de salvar não cobrir o fim da página. */}
@@ -454,6 +502,25 @@ export function MealPlanEditor({
           </PortionPanel>
         </Modal>
       ) : null}
+
+      {subsFor && subsItem ? (
+        <SubstitutesModal
+          main={{
+            foodId: subsItem.foodId,
+            foodName: subsItem.foodName,
+            quantityG: subsItem.quantityG,
+            per100: itemPer100(subsItem),
+            measure: subsItem.measure,
+            portionText: itemText(subsItem),
+          }}
+          initial={subsItem.substitutes}
+          onApply={(set) => {
+            updateItem(subsFor.mealKey, subsFor.itemKey, { substitutes: set });
+            setSubsFor(null);
+          }}
+          onClose={() => setSubsFor(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -466,6 +533,7 @@ function MealCard({
   onUpdateItem,
   onRemoveItem,
   onEditItem,
+  onSubstitutesItem,
   onAddFood,
   onMove,
   onDuplicate,
@@ -478,6 +546,7 @@ function MealCard({
   onUpdateItem: (itemKey: string, patch: Partial<EditorItem>) => void;
   onRemoveItem: (itemKey: string) => void;
   onEditItem: (itemKey: string) => void;
+  onSubstitutesItem: (itemKey: string) => void;
   onAddFood: () => void;
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
@@ -551,6 +620,7 @@ function MealCard({
                 onChange={(patch) => onUpdateItem(item.key, patch)}
                 onRemove={() => onRemoveItem(item.key)}
                 onEdit={() => onEditItem(item.key)}
+                onSubstitutes={() => onSubstitutesItem(item.key)}
               />
             ))}
           </div>
@@ -578,13 +648,16 @@ function ItemRow({
   onChange,
   onRemove,
   onEdit,
+  onSubstitutes,
 }: {
   item: EditorItem;
   onChange: (patch: Partial<EditorItem>) => void;
   onRemove: () => void;
   onEdit: () => void;
+  onSubstitutes: () => void;
 }) {
   const it = itemTotals(item);
+  const subsCount = item.substitutes?.options.length ?? 0;
   return (
     <div className={cn(ITEM_GRID, "py-3 text-sm @xl:py-2")}>
       <div className="min-w-0">
@@ -603,9 +676,9 @@ function ItemRow({
           <input
             value={item.notes}
             onChange={(e) => onChange({ notes: e.target.value })}
-            placeholder="Obs. / substituição"
+            placeholder="Observação"
             maxLength={500}
-            aria-label="Observação ou substituição"
+            aria-label="Observação"
             className="w-full min-w-0 rounded border-0 bg-transparent px-1 text-base text-slate-500 placeholder:text-slate-300 focus:bg-slate-50 focus:outline-none sm:text-xs"
           />
         </div>
@@ -682,6 +755,22 @@ function ItemRow({
           {fmt(it.fat, 1)}
         </span>
       </p>
+      {/* Substituições numa linha própria, na largura toda do item. */}
+      <div className="col-span-2 text-xs @xl:col-span-8 @xl:pt-1.5">
+        {item.substitutes && subsCount ? (
+          <p className="text-slate-500">
+            <span className="font-medium text-slate-600">ou </span>
+            {substitutesSummary(item.substitutes)}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={onSubstitutes}
+          className="inline-flex items-center gap-1 py-1 font-medium text-emerald-700 hover:underline"
+        >
+          <ArrowLeftRight className="h-3.5 w-3.5" /> {subsCount ? `Substituições (${subsCount})` : "Adicionar substituição"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -822,7 +911,7 @@ function Progress({ label, value, target, unit }: { label: string; value: number
 }
 
 function TotalsCard({ totals, split, plan }: { totals: NutrientTotals; split: { protein: number; carbs: number; fat: number }; plan: EditorPlan }) {
-  const perMeal = plan.meals.map((m) => ({ name: m.name, kcal: sumTotals(m.items.map(itemTotals)).kcal }));
+  const perMeal = plan.meals.map((m) => ({ name: m.name, t: sumTotals(m.items.map(itemTotals)) }));
   return (
     <Card className="p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total do dia</p>
@@ -862,17 +951,30 @@ function TotalsCard({ totals, split, plan }: { totals: NutrientTotals; split: { 
         </div>
       </div>
       {perMeal.length ? (
-        <ul className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
-          {perMeal.map((m, i) => (
-            <li key={i} className="flex justify-between gap-2">
-              <span className="truncate">{m.name}</span>
-              <span className="shrink-0">
-                {fmt(m.kcal, 0)} kcal{" "}
-                <span className="text-slate-400">({totals.kcal ? fmt((m.kcal / totals.kcal) * 100, 0) : 0}%)</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-4 border-t border-slate-100 pt-3">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Por refeição</p>
+          <ul className="space-y-2.5 text-xs text-slate-600">
+            {perMeal.map((m, i) => {
+              const share = totals.kcal ? (m.t.kcal / totals.kcal) * 100 : 0;
+              return (
+                <li key={i}>
+                  <div className="flex justify-between gap-2">
+                    <span className="truncate">{m.name}</span>
+                    <span className="shrink-0">
+                      {fmt(m.t.kcal, 0)} kcal <span className="text-slate-400">({fmt(share, 0)}%)</span>
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, share)}%` }} />
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    P {fmt(m.t.protein, 0)} g · C {fmt(m.t.carbs, 0)} g · G {fmt(m.t.fat, 0)} g
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : null}
     </Card>
   );

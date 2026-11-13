@@ -2,6 +2,7 @@ import type { Meal, MealItem, MealPlan } from "@/generated/prisma/client";
 import { fmt } from "@/lib/format";
 import { itemTotals, macroSplit, mealTotals, planTotals } from "@/lib/meal-math";
 import { stripRepeatedGrams } from "@/lib/measures";
+import { parseSubstitutes, substituteMeasureText } from "@/lib/substitutes";
 
 export type PlanWithMeals = MealPlan & { meals: (Meal & { items: MealItem[] })[] };
 
@@ -49,6 +50,7 @@ export function MealPlanView({ plan, showNutrients = true }: { plan: PlanWithMea
                   const it = itemTotals(item);
                   // Planos antigos guardavam "1 unidade (50 g)": não repetir os gramas.
                   const measure = item.householdMeasure ? stripRepeatedGrams(item.householdMeasure, item.quantityG) : "";
+                  const substitutes = parseSubstitutes(item.substitutes);
                   return (
                     <li key={item.id} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -58,6 +60,16 @@ export function MealPlanView({ plan, showNutrients = true }: { plan: PlanWithMea
                           {fmt(item.quantityG, 0)} g
                         </p>
                         {item.notes ? <p className="text-xs italic text-slate-500">{item.notes}</p> : null}
+                        {substitutes ? (
+                          <ul className="mt-1 space-y-0.5 text-sm text-slate-600">
+                            {substitutes.options.map((o, i) => (
+                              <li key={i}>
+                                <span className="text-slate-400">ou</span> {o.foodName} ·{" "}
+                                {[substituteMeasureText(o), `${fmt(o.quantityG, 0)} g`].filter(Boolean).join(" · ")}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </div>
                       {showNutrients ? (
                         <p className="shrink-0 text-xs text-slate-400">

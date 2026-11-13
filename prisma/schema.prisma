@@ -245,6 +245,8 @@ model MealItem {
   fat100           Float   @default(0)
   fiber100         Float   @default(0)
   sodium100        Float   @default(0)
+  /// Substituições do item em JSON: { by, options: [...] } (ver src/lib/substitutes.ts).
+  substitutes      String?
   notes            String?
 
   @@index([mealId])

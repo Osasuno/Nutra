@@ -52,6 +52,7 @@ export const POST = route(async (request: Request, ctx: RouteContext<"/api/patie
                 fat100: item.fat100,
                 fiber100: item.fiber100,
                 sodium100: item.sodium100,
+                substitutes: item.substitutes,
                 notes: item.notes,
               })),
             },
