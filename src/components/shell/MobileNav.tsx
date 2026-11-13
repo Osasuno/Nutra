@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { InstallAppButton } from "@/components/pwa/InstallAppButton";
 import { NavLinks } from "./NavLinks";
 import type { NavItem } from "./nav-config";
 
@@ -78,6 +79,7 @@ function DrawerPanel({ items, homeHref, onClose }: { items: NavItem[]; homeHref:
           </button>
         </div>
         <NavLinks items={items} onNavigate={onClose} />
+        <InstallAppButton className="mt-4 border-t border-slate-100 pt-3" />
       </div>
     </div>
   );

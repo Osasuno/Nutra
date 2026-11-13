@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { Logo } from "@/components/Logo";
+import { InstallAppButton } from "@/components/pwa/InstallAppButton";
 import { Avatar, Skeleton } from "@/components/ui";
 import { getCurrentUser } from "@/lib/dal";
 import { LogoutButton } from "./LogoutButton";
@@ -28,6 +29,7 @@ export function AppShell({
             <NavLinks items={items} />
           </Suspense>
         </div>
+        <InstallAppButton className="border-t border-slate-100 pt-3" />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

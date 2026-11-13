@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,6 +20,9 @@ export const metadata: Metadata = {
   },
   description:
     "Anamnese completa, base de alimentos TACO, planos alimentares, diário com fotos, chat e cálculos nutricionais em um só lugar.",
+  applicationName: "Nutra",
+  // Na tela de início do iPhone: abre sem a barra do Safari e com o nome curto.
+  appleWebApp: { capable: true, title: "Nutra", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -27,8 +31,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+    // data-sw: o service worker (public/sw.js) só é registrado no build de produção.
+    <html
+      lang="pt-BR"
+      data-sw={process.env.NODE_ENV === "production" ? "on" : undefined}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="flex min-h-full flex-col font-sans">
+        {children}
+        <Script src="/pwa.js" strategy="beforeInteractive" />
+      </body>
     </html>
   );
 }
