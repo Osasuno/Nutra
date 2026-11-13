@@ -20,17 +20,23 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!session) return null;
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, passwordChangedAt: true },
   });
   if (!user) return null;
-  return { ...user, role: user.role as Role };
+  // A senha foi trocada por link depois que esta sessão foi aberta: ela não vale mais.
+  // O JWT guarda o horário em segundos, por isso a comparação é por segundo.
+  if (user.passwordChangedAt && (session.issuedAt ?? 0) < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
+    return null;
+  }
+  return { id: user.id, name: user.name, email: user.email, role: user.role as Role };
 });
 
 /** Exige login (e opcionalmente um papel). Redireciona quando não atende. */
 export async function requireUser(role?: Role): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) {
-    // Sessão válida para uma conta inexistente (ex.: banco recriado): limpa o cookie.
+    // Sessão de uma conta que não existe mais (ex.: banco recriado) ou aberta antes de uma
+    // troca de senha: limpa o cookie e volta para o login.
     const session = await getSession();
     redirect(session ? "/api/auth/logout" : "/login");
   }

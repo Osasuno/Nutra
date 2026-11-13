@@ -41,6 +41,13 @@ export function LoginForm({ next }: { next?: string }) {
         <Field label="Senha" htmlFor="password">
           <Input id="password" name="password" type="password" autoComplete="current-password" required />
         </Field>
+        <details className="text-sm text-slate-600">
+          <summary className="cursor-pointer font-medium text-emerald-700 hover:underline">Esqueci minha senha</summary>
+          <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2">
+            Se você é paciente, peça à sua nutricionista um link de nova senha. Ela gera o link na sua ficha e envia
+            para você, pelo WhatsApp por exemplo. Se você é nutricionista, fale com quem administra o Nutra.
+          </p>
+        </details>
         {error ? <Alert tone="red">{error}</Alert> : null}
         <Button type="submit" className="w-full" disabled={loading}>
           <LogIn className="h-4 w-4" /> {loading ? "Entrando..." : "Entrar"}

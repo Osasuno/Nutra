@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Link2, Settings2, ShieldAlert, User } from "lucide-react";
 import { PatientForm } from "@/components/nutri/PatientForm";
-import { InviteActions, StatusActions } from "@/components/nutri/PatientActions";
+import { InviteActions, PasswordResetLink, StatusActions } from "@/components/nutri/PatientActions";
 import { Alert, Card, CardBody, CardHeader, PageSkeleton } from "@/components/ui";
 import { requireNutriPatient } from "@/lib/dal";
 import { toDateInput } from "@/lib/format";
@@ -42,10 +42,17 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/da
           <CardHeader title="Acesso do paciente" icon={<Link2 className="h-5 w-5" />} />
           <CardBody>
             {patient.userId ? (
-              <Alert tone="green" title="Conta vinculada">
-                O paciente acessa a plataforma, consulta a anamnese e envia exames, vê o plano ativo, registra o
-                diário e conversa com você pelo chat.
-              </Alert>
+              <div className="space-y-4">
+                <Alert tone="green" title="Conta vinculada">
+                  O paciente acessa a plataforma, consulta a anamnese e envia exames, vê o plano ativo, registra o
+                  diário e conversa com você pelo chat.
+                </Alert>
+                {patient.status === "ACTIVE" ? (
+                  <div className="border-t border-slate-100 pt-4">
+                    <PasswordResetLink patientId={id} patientName={patient.name} phone={patient.phone} />
+                  </div>
+                ) : null}
+              </div>
             ) : patient.inviteToken ? (
               <div className="space-y-3">
                 <p className="text-sm text-slate-600">
@@ -69,8 +76,8 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/da
 
         <Alert tone="yellow" title="Proteção de dados (LGPD)">
           <span className="inline-flex items-start gap-1">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Dados de saúde são sensíveis. Compartilhe o link de
-            convite apenas com o próprio paciente.
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Dados de saúde são sensíveis. Envie os links de
+            convite e de nova senha apenas para o próprio paciente.
           </span>
         </Alert>
       </div>

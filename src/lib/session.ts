@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { isRole, type Role } from "./roles";
 
 export type SessionPayload = { userId: string; role: Role };
+/** Sessão lida do cookie. issuedAt (segundos) serve para invalidar sessões após troca de senha. */
+export type Session = SessionPayload & { issuedAt: number | null };
 
 export const SESSION_COOKIE = "nutra_session";
 const SESSION_DAYS = 7;
@@ -32,12 +34,12 @@ export async function encrypt(payload: SessionPayload) {
     .sign(getKey());
 }
 
-export async function decrypt(token: string | undefined): Promise<SessionPayload | null> {
+export async function decrypt(token: string | undefined): Promise<Session | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getKey(), { algorithms: ["HS256"] });
     if (typeof payload.userId !== "string" || !isRole(payload.role)) return null;
-    return { userId: payload.userId, role: payload.role };
+    return { userId: payload.userId, role: payload.role, issuedAt: typeof payload.iat === "number" ? payload.iat : null };
   } catch {
     return null;
   }

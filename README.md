@@ -107,6 +107,7 @@ src/
 ## Segurança e LGPD
 
 - Senhas com bcrypt; sessão em JWT assinado num cookie `httpOnly` e `SameSite=Lax`.
+- Senha esquecida: a nutricionista gera, na ficha do paciente (Dados e convite), um link de nova senha que vale 24 h e funciona uma vez; o banco guarda só o hash do token (`src/lib/password-reset.ts`). Só a nutricionista do vínculo ativo gera o link. A troca grava `passwordChangedAt`, e as sessões abertas antes disso deixam de valer. Não há envio de e-mail.
 - Toda leitura e escrita verifica se o paciente pertence à nutricionista logada (ou se é o próprio paciente com vínculo ativo).
 - Fotos do diário ficam no banco (tabela `Photo`), são reduzidas no navegador antes do envio e só são servidas a quem tem acesso; o tipo do arquivo é conferido pelo conteúdo.
 - Cada foto do diário é apagada 7 dias depois do feedback da nutricionista, ou 30 dias depois do envio se ela não comentou (`purgeExpiredPhotos` em `src/lib/uploads.ts`, que roda após cada registro novo e cada feedback). O registro, a descrição e o feedback continuam. Os exames não têm prazo.

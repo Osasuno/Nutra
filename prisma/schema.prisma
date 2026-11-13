@@ -13,18 +13,21 @@ datasource db {
 
 /// Conta de acesso. role: "NUTRITIONIST" | "PATIENT"
 model User {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  passwordHash String
-  role         String
-  phone        String?
-  birthDate    DateTime?
+  id                String    @id @default(cuid())
+  name              String
+  email             String    @unique
+  passwordHash      String
+  role              String
+  phone             String?
+  birthDate         DateTime?
   /// "F" | "M"
-  sex          String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  sex               String?
+  /// Última troca de senha por link. Sessões abertas antes disso deixam de valer (ver src/lib/dal.ts).
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
+  passwordResets         PasswordReset[]
   nutritionistProfile    NutritionistProfile?
   patientsAsNutritionist Patient[]            @relation("NutritionistPatients")
   patientRecords         Patient[]            @relation("PatientUser")
@@ -54,24 +57,24 @@ model NutritionistProfile {
 /// Prontuário/vínculo entre uma nutricionista e um paciente.
 /// status: "PENDING" (solicitação) | "ACTIVE" | "ARCHIVED"
 model Patient {
-  id              String    @id @default(cuid())
-  nutritionistId  String
-  nutritionist    User      @relation("NutritionistPatients", fields: [nutritionistId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  nutritionistId String
+  nutritionist   User      @relation("NutritionistPatients", fields: [nutritionistId], references: [id], onDelete: Cascade)
   /// Conta do paciente (opcional: a nutri pode cadastrar antes de o paciente criar a conta).
-  userId          String?
-  user            User?     @relation("PatientUser", fields: [userId], references: [id], onDelete: SetNull)
-  status          String    @default("ACTIVE")
-  name            String
-  email           String?
-  phone           String?
-  birthDate       DateTime?
-  sex             String?
-  objective       String?
+  userId         String?
+  user           User?     @relation("PatientUser", fields: [userId], references: [id], onDelete: SetNull)
+  status         String    @default("ACTIVE")
+  name           String
+  email          String?
+  phone          String?
+  birthDate      DateTime?
+  sex            String?
+  objective      String?
   /// Token do link de convite individual (anulado quando o paciente aceita).
-  inviteToken     String?   @unique
-  requestMessage  String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  inviteToken    String?   @unique
+  requestMessage String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   anamnesis    Anamnesis?
   assessments  Assessment[]
@@ -128,20 +131,20 @@ model Assessment {
 
 /// Cálculo de gasto energético e metas de macronutrientes.
 model EnergyCalculation {
-  id             String   @id @default(cuid())
-  patientId      String
-  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  formula        String
+  id         String   @id @default(cuid())
+  patientId  String
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  formula    String
   /// JSON com todos os parâmetros usados no cálculo
-  inputs         String
-  bmr            Float?
-  tdee           Float
-  targetKcal     Float
-  proteinG       Float
-  carbsG         Float
-  fatG           Float
-  notes          String?
-  createdAt      DateTime @default(now())
+  inputs     String
+  bmr        Float?
+  tdee       Float
+  targetKcal Float
+  proteinG   Float
+  carbsG     Float
+  fatG       Float
+  notes      String?
+  createdAt  DateTime @default(now())
 
   @@index([patientId, createdAt])
 }
@@ -298,6 +301,22 @@ model ClinicalNote {
   createdAt DateTime @default(now())
 
   @@index([patientId, createdAt])
+}
+
+/// Link de nova senha que a nutricionista gera para um paciente. Guarda só o hash do token;
+/// vale 24 h e funciona uma vez (ver src/lib/password-reset.ts).
+model PasswordReset {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  /// Nutricionista que gerou o link.
+  createdById String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
 }
 
 /// Fotos do diário alimentar, guardadas no banco (id = nome do arquivo, ex.: <uuid>.jpg).
