@@ -6,7 +6,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/client-api";
 
-/** Liga ou desliga as dicas da caneta na tela do plano do paciente. */
+/** Liga ou desliga as dicas da caneta na tela de início do paciente. */
 export function Glp1ShareToggle({ patientId, shared, hasAccount }: { patientId: string; shared: boolean; hasAccount: boolean }) {
   const router = useRouter();
   const [on, setOn] = useState(shared);
@@ -31,7 +31,7 @@ export function Glp1ShareToggle({ patientId, shared, hasAccount }: { patientId: 
     <div className="flex flex-wrap items-center justify-between gap-2">
       <p className="min-w-0 text-sm text-slate-600">
         {on
-          ? "O paciente vê as dicas em linguagem simples na tela do plano."
+          ? "O paciente vê as dicas em linguagem simples na tela de início, abaixo do plano."
           : "O paciente não vê estas orientações."}
         {on && !hasAccount ? " Elas aparecem quando ele criar a conta." : ""}
         {error ? <span className="block text-red-600">{error}</span> : null}

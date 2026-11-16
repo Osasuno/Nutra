@@ -3,7 +3,7 @@ import { Card } from "@/components/ui";
 import { GLP1_REFS } from "@/lib/glp1";
 import type { PatientTips } from "@/lib/glp1-tips";
 
-/** Dicas da caneta para o paciente (tela do plano do paciente e prévia para a nutricionista). */
+/** Dicas da caneta para o paciente (tela de início do paciente e prévia para a nutricionista). */
 export function Glp1TipsCard({ tips, nutriName, open = false }: { tips: PatientTips; nutriName?: string; open?: boolean }) {
   const count = tips.groups.reduce((n, g) => n + g.tips.length, 0);
   return (

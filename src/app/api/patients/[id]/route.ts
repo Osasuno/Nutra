@@ -61,7 +61,7 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/pati
       await prisma.patient.update({ where: { id }, data: body.data });
       break;
     case "glp1Tips":
-      // Dicas da caneta na tela do plano do paciente.
+      // Dicas da caneta na tela de início do paciente.
       await prisma.patient.update({ where: { id }, data: { glp1TipsShared: body.shared } });
       break;
   }

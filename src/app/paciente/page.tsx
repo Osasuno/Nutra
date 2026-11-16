@@ -11,13 +11,16 @@ import {
   Scale,
   UtensilsCrossed,
 } from "lucide-react";
+import { Glp1TipsCard } from "@/components/glp1/Glp1TipsCard";
 import { LinkActionButton } from "@/components/patient/ConnectForms";
 import { NoLink } from "@/components/patient/NoLink";
 import { NotificationsBanner } from "@/components/pwa/NotificationsCard";
 import { Alert, Avatar, Badge, ButtonLink, Card, CardBody, CardHeader, PageSkeleton, Stat } from "@/components/ui";
+import { parseAnamnesis } from "@/lib/anamnesis";
 import { prisma } from "@/lib/db";
 import { getPatientLinks } from "@/lib/dal";
 import { fmt, fmtDate, fmtRelative } from "@/lib/format";
+import { glp1PatientTips } from "@/lib/glp1-tips";
 import { ratingInfo } from "@/lib/meal-log";
 import { planTotals } from "@/lib/meal-math";
 import { OPEN_STATUSES, shortWhen } from "@/lib/schedule";
@@ -70,7 +73,7 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
     );
   }
 
-  const [plan, feedbacks, lastAssessment, unread, examCount, logs7, nextAppointment] = await Promise.all([
+  const [plan, feedbacks, lastAssessment, unread, examCount, logs7, nextAppointment, anamnesis] = await Promise.all([
     prisma.mealPlan.findFirst({
       where: { patientId: active.id, isActive: true },
       include: { meals: { orderBy: { position: "asc" }, include: { items: true } } },
@@ -88,7 +91,10 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
       where: { patientId: active.id, status: { in: OPEN_STATUSES }, endsAt: { gte: daysAgo(0) } },
       orderBy: { startsAt: "asc" },
     }),
+    // Dicas da caneta só quando a nutricionista liberou.
+    active.glp1TipsShared ? prisma.anamnesis.findUnique({ where: { patientId: active.id }, select: { data: true } }) : null,
   ]);
+  const tips = anamnesis ? glp1PatientTips(parseAnamnesis(anamnesis.data)) : null;
   const totals = plan ? planTotals(plan.meals) : null;
   const nutri = active.nutritionist;
   const digits = nutri.phone?.replace(/\D/g, "") ?? "";
@@ -142,6 +148,8 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* Plano e, logo abaixo, as dicas da caneta (quando a nutricionista libera). */}
+        <div className="min-w-0 space-y-6">
         <Card>
           <CardHeader
             title="Seu plano alimentar"
@@ -181,6 +189,8 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
             )}
           </CardBody>
         </Card>
+        {tips ? <Glp1TipsCard tips={tips} nutriName={active.nutritionist.name} /> : null}
+        </div>
 
         <div className="space-y-6">
           <Card>

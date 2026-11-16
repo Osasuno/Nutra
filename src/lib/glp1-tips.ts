@@ -1,6 +1,6 @@
-// Dicas para o paciente que usa (ou usou) caneta, em linguagem simples. Aparecem na tela do
-// plano do paciente só quando a nutricionista libera (Patient.glp1TipsShared). Vêm das mesmas
-// fontes de glp1.ts, mas sem números de proteína (a meta que vale é a do plano) e sem ajuste de
+// Dicas para o paciente que usa (ou usou) caneta, em linguagem simples. Aparecem na tela de
+// início do paciente, abaixo do plano, só quando a nutricionista libera (Patient.glp1TipsShared).
+// Vêm das mesmas fontes de glp1.ts, mas sem números de proteína (a meta que vale é a do plano) e sem ajuste de
 // remédio (para o paciente, só "fale com seu médico").
 
 import { GLP1_USE, type AnamnesisData } from "./anamnesis";
