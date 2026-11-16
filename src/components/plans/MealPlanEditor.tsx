@@ -43,6 +43,7 @@ import { FoodPickerModal, type PickedFood } from "./FoodPickerModal";
 import { MicronutrientsCard } from "./MicronutrientsCard";
 import { ProtocolCard } from "./ProtocolCard";
 import { SubstitutesModal } from "./SubstitutesModal";
+import { SaveAsTemplateButton } from "./TemplateButtons";
 
 export type EditorItem = {
   key: string;
@@ -433,6 +434,7 @@ export function MealPlanEditor({
               <Button variant="ghost" onClick={duplicate} title="Duplicar plano" aria-label="Duplicar plano">
                 <Copy className="h-4 w-4" />
               </Button>
+              <SaveAsTemplateButton planId={planId} defaultTitle={plan.title} dirty={dirty} />
               <Button variant="ghost" onClick={remove} title="Excluir plano" aria-label="Excluir plano" className="text-red-600 hover:bg-red-50">
                 <Trash2 className="h-4 w-4" />
               </Button>

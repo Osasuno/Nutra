@@ -12,6 +12,8 @@ export type FoodResult = {
   servingSize: string | null;
   per100: { kcal: number; protein: number; carbs: number; fat: number; fiber: number; sodium: number };
   extra: Record<string, number | null>;
+  /** Receita da nutricionista: porções e peso de uma porção pronta. */
+  recipe?: { servings: number; portionG: number } | null;
 };
 
 export const SOURCE_LABEL: Record<FoodSource, string> = {

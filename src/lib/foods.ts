@@ -3,6 +3,7 @@ import { prisma } from "./db";
 import { normalizeText, searchTokens } from "./text";
 import type { Food } from "@/generated/prisma/client";
 import type { FoodResult, FoodSource } from "./food-types";
+import { recipeSummary } from "./recipes";
 
 // Busca de alimentos: base local (TACO + alimentos personalizados) e
 // produtos industrializados do Open Food Facts (online, dados ODbL).
@@ -38,6 +39,7 @@ export function foodToResult(food: Food): FoodResult {
       sodium: zero(food.sodium),
     },
     extra: parseExtra(food.extra),
+    recipe: recipeSummary(food.recipe),
   };
 }
 

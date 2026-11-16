@@ -14,7 +14,7 @@ export const DEFAULT_MEALS = [
 
 const num = (max: number) => z.number().min(0).max(max);
 
-const per100Schema = z.object({
+export const per100Schema = z.object({
   kcal: num(1000),
   protein: num(100),
   carbs: num(100),

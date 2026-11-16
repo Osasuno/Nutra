@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
 import { fmtDate } from "@/lib/format";
+import { planRecipes } from "@/lib/plan-foods";
 
 export const metadata: Metadata = { title: "Plano alimentar" };
 
@@ -62,7 +63,7 @@ async function PrintContent({ params }: { params: PageProps<"/imprimir/plano/[pl
         </div>
         <PrintButton />
       </div>
-      <MealPlanView plan={plan} />
+      <MealPlanView plan={plan} recipes={await planRecipes(plan, plan.patient.nutritionistId)} />
       <p className="mt-6 text-xs text-slate-400">
         Valores nutricionais estimados com base na Tabela TACO (NEPA/UNICAMP) e nos rótulos dos produtos. Siga
         as orientações da sua nutricionista.

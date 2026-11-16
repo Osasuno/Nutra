@@ -13,8 +13,11 @@ import { MeasureStepper } from "./MeasureStepper";
 /** Porção escolhida: gramas, texto para o paciente e a medida caseira estruturada (se houver). */
 export type Portion = { grams: number; householdMeasure: string; measure: ItemMeasure | null };
 
-/** "30 g" no rótulo vira a medida "Porção do rótulo". */
+/** "30 g" no rótulo vira a medida "Porção do rótulo"; receita da nutricionista, "Porção". */
 function labelServing(food: FoodResult) {
+  if (food.recipe && food.recipe.portionG > 0) {
+    return [{ id: -3, measure: "Porção", description: `1 porção da receita (rende ${food.recipe.servings})`, grams: food.recipe.portionG }];
+  }
   const m = food.servingSize?.match(/(\d+(?:[.,]\d+)?)\s*g\b/i);
   const grams = m ? Number(m[1].replace(",", ".")) : NaN;
   return Number.isFinite(grams) && grams > 0
@@ -85,7 +88,7 @@ export function PortionPanel({
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-semibold text-slate-900">{food.name}</h3>
           <Badge tone={food.source === "TACO" ? "green" : food.source === "CUSTOM" ? "purple" : "blue"}>
-            {SOURCE_LABEL[food.source]}
+            {food.recipe ? "Receita" : SOURCE_LABEL[food.source]}
           </Badge>
         </div>
         <p className="text-xs text-slate-500">

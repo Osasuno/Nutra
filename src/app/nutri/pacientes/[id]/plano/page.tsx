@@ -3,11 +3,13 @@ import Link from "next/link";
 import { UtensilsCrossed } from "lucide-react";
 import { DeleteButton } from "@/components/DeleteButton";
 import { NewPlanButton } from "@/components/plans/NewPlanButton";
+import { UseTemplateButton } from "@/components/plans/TemplateButtons";
 import { Badge, Card, EmptyState, PageSkeleton } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { requireNutriPatient } from "@/lib/dal";
 import { fmt, fmtRelative } from "@/lib/format";
 import { planTotals } from "@/lib/meal-math";
+import { parseTemplateMeals } from "@/lib/plan-templates";
 
 export default function PlansPage(props: PageProps<"/nutri/pacientes/[id]/plano">) {
   return (
@@ -19,12 +21,15 @@ export default function PlansPage(props: PageProps<"/nutri/pacientes/[id]/plano"
 
 async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/plano">["params"] }) {
   const { id } = await params;
-  await requireNutriPatient(id);
-  const plans = await prisma.mealPlan.findMany({
-    where: { patientId: id },
-    orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
-    include: { meals: { include: { items: true } } },
-  });
+  const { user } = await requireNutriPatient(id);
+  const [plans, templates] = await Promise.all([
+    prisma.mealPlan.findMany({
+      where: { patientId: id },
+      orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
+      include: { meals: { include: { items: true } } },
+    }),
+    prisma.planTemplate.findMany({ where: { nutritionistId: user.id }, orderBy: { updatedAt: "desc" } }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -32,7 +37,22 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
         <p className="text-sm text-slate-500">
           Apenas o plano <strong>ativo</strong> aparece para o paciente. Duplique um plano para criar variações.
         </p>
-        <NewPlanButton patientId={id} />
+        <div className="flex flex-wrap gap-2">
+          <UseTemplateButton
+            patientId={id}
+            templates={templates.map((t) => {
+              const meals = parseTemplateMeals(t.meals) ?? [];
+              return {
+                id: t.id,
+                title: t.title,
+                meals: meals.length,
+                items: meals.reduce((s, m) => s + m.items.length, 0),
+                kcal: planTotals(meals).kcal,
+              };
+            })}
+          />
+          <NewPlanButton patientId={id} />
+        </div>
       </div>
       {plans.length === 0 ? (
         <EmptyState

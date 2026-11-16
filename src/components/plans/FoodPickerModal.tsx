@@ -102,15 +102,18 @@ export function FoodPickerModal({
               <PortionPanel key={food.key} food={food} onSubmit={add}>
                 {(portion) => (
                   <div className="space-y-3 border-t border-slate-100 pt-4">
-                    <Field label="Adicionar à refeição" htmlFor="picker-meal">
-                      <Select id="picker-meal" value={mealKey} onChange={(e) => setMealKey(e.target.value)}>
-                        {meals.map((m) => (
-                          <option key={m.key} value={m.key}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
+                    {/* Com um destino só (ex.: ingredientes de uma receita), não há o que escolher. */}
+                    {meals.length > 1 ? (
+                      <Field label="Adicionar à refeição" htmlFor="picker-meal">
+                        <Select id="picker-meal" value={mealKey} onChange={(e) => setMealKey(e.target.value)}>
+                          {meals.map((m) => (
+                            <option key={m.key} value={m.key}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    ) : null}
                     <Button type="submit" className="w-full" disabled={!portion.grams}>
                       <Plus className="h-4 w-4" /> Adicionar
                     </Button>

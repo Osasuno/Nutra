@@ -27,6 +27,7 @@ export const NUTRI_NAV: NavItem[] = [
   { href: "/nutri/agenda", label: "Agenda", icon: "calendar", badge: "pendingAppointments" },
   { href: "/nutri/mensagens", label: "Mensagens", icon: "messages", badge: "unreadMessages" },
   { href: "/nutri/alimentos", label: "Alimentos", icon: "foods" },
+  { href: "/nutri/modelos", label: "Modelos e receitas", icon: "plan", match: ["/nutri/receitas"] },
   { href: "/nutri/calculadoras", label: "Calculadoras", icon: "calculator" },
   { href: "/nutri/perfil", label: "Meu perfil", icon: "settings" },
 ];

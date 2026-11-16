@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { EvolutionChart } from "@/components/charts/EvolutionChart";
 import { Glp1Panel } from "@/components/glp1/Glp1Panel";
+import { PatientSetup } from "@/components/nutri/PatientSetup";
 import { NoteForm } from "@/components/nutri/NoteForm";
 import { Badge, Card, CardBody, CardHeader, EmptyState, PageSkeleton, Stat } from "@/components/ui";
 import { parseAnamnesis, anamnesisProgress, type AnamnesisData } from "@/lib/anamnesis";
@@ -143,6 +144,8 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
   const totals = plan ? planTotals(plan.meals) : null;
   const split = totals ? macroSplit(totals) : null;
   const base = `/nutri/pacientes/${id}`;
+  // Com plano ativo já existe plano; sem ele, conta os rascunhos.
+  const planCount = plan ? 1 : await prisma.mealPlan.count({ where: { patientId: id } });
 
   const points = assessments.map((a) => {
     let waist: number | null = null;
@@ -157,6 +160,17 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
 
   return (
     <div className="space-y-6">
+      <PatientSetup
+        patientId={id}
+        steps={[
+          { id: "acesso", title: "Acesso ao app", done: Boolean(patient.userId), href: `${base}/dados`, action: "Enviar o convite" },
+          { id: "anamnese", title: "Anamnese", done: Boolean(progress && progress.filled > 0), href: `${base}/anamnese`, action: "Preencher" },
+          { id: "avaliacao", title: "Avaliação", done: assessments.length > 0, href: `${base}/avaliacoes`, action: "Registrar peso e medidas" },
+          { id: "energia", title: "Energia e metas", done: Boolean(energy), href: `${base}/energia`, action: "Calcular" },
+          { id: "plano", title: "Plano alimentar", done: planCount > 0, href: `${base}/plano`, action: "Montar o plano" },
+          { id: "ativar", title: "Ativar o plano", done: Boolean(plan), href: `${base}/plano`, action: "Ativar para o paciente" },
+        ]}
+      />
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat
           label="Peso atual"

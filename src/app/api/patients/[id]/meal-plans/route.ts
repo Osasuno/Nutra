@@ -3,18 +3,20 @@ import { ApiError, apiPatientAccess, readJson, route } from "@/lib/api";
 import { parseAnamnesis } from "@/lib/anamnesis";
 import { ageFrom } from "@/lib/format";
 import { DEFAULT_MEALS } from "@/lib/meal-plan";
+import { parseTemplateMeals, templateMealsCreate } from "@/lib/plan-templates";
 import { computeProtocol, protocolInput } from "@/lib/protocol";
 import { z } from "@/lib/validation";
 
 const schema = z.object({
   title: z.string().trim().max(120).nullish(),
   fromPlanId: z.string().max(100).nullish(),
+  fromTemplateId: z.string().max(100).nullish(),
 });
 
 /** Cria um plano em branco (com refeições padrão) ou duplica um existente. */
 export const POST = route(async (request: Request, ctx: RouteContext<"/api/patients/[id]/meal-plans">) => {
   const { id } = await ctx.params;
-  const { patient } = await apiPatientAccess(id, "NUTRITIONIST");
+  const { user, patient } = await apiPatientAccess(id, "NUTRITIONIST");
   const body = await readJson(request, schema);
 
   if (body.fromPlanId) {
@@ -67,6 +69,16 @@ export const POST = route(async (request: Request, ctx: RouteContext<"/api/patie
     return Response.json(copy, { status: 201 });
   }
 
+  // Modelo da nutricionista: refeições e alimentos do modelo; as metas seguem o paciente.
+  let fromTemplate: { title: string; notes: string | null; meals: ReturnType<typeof templateMealsCreate> } | null = null;
+  if (body.fromTemplateId) {
+    const template = await prisma.planTemplate.findFirst({ where: { id: body.fromTemplateId, nutritionistId: user.id } });
+    if (!template) throw new ApiError(404, "Modelo não encontrado.");
+    const meals = parseTemplateMeals(template.meals);
+    if (!meals) throw new ApiError(400, "Este modelo está com dados inválidos.");
+    fromTemplate = { title: template.title, notes: template.notes, meals: templateMealsCreate(meals) };
+  }
+
   // Plano novo já nasce com as metas do protocolo (cálculo de energia + condições da anamnese).
   const [energy, anamnesis, last] = await Promise.all([
     prisma.energyCalculation.findFirst({ where: { patientId: id }, orderBy: { createdAt: "desc" } }),
@@ -86,12 +98,13 @@ export const POST = route(async (request: Request, ctx: RouteContext<"/api/patie
   const plan = await prisma.mealPlan.create({
     data: {
       patientId: id,
-      title: body.title || "Plano alimentar",
+      title: body.title || fromTemplate?.title || "Plano alimentar",
+      notes: fromTemplate?.notes ?? null,
       targetKcal: energy ? Math.round(energy.targetKcal) : null,
       targetProtein: t ? t.protein : energy ? Math.round(energy.proteinG) : null,
       targetCarbs: t?.carbs ?? (energy ? Math.round(energy.carbsG) : null),
       targetFat: t?.fat ?? (energy ? Math.round(energy.fatG) : null),
-      meals: { create: DEFAULT_MEALS.map((m, position) => ({ ...m, position })) },
+      meals: { create: fromTemplate ? fromTemplate.meals : DEFAULT_MEALS.map((m, position) => ({ ...m, position })) },
     },
     select: { id: true },
   });

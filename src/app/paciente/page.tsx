@@ -14,7 +14,7 @@ import {
 import { Glp1TipsCard } from "@/components/glp1/Glp1TipsCard";
 import { LinkActionButton } from "@/components/patient/ConnectForms";
 import { NoLink } from "@/components/patient/NoLink";
-import { NotificationsBanner } from "@/components/pwa/NotificationsCard";
+import { FirstSteps } from "@/components/patient/FirstSteps";
 import { Alert, Avatar, Badge, ButtonLink, Card, CardBody, CardHeader, PageSkeleton, Stat } from "@/components/ui";
 import { parseAnamnesis } from "@/lib/anamnesis";
 import { prisma } from "@/lib/db";
@@ -73,7 +73,7 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
     );
   }
 
-  const [plan, feedbacks, lastAssessment, unread, examCount, logs7, nextAppointment, anamnesis] = await Promise.all([
+  const [plan, feedbacks, lastAssessment, unread, examCount, logs7, nextAppointment, anamnesis, firstLog] = await Promise.all([
     prisma.mealPlan.findFirst({
       where: { patientId: active.id, isActive: true },
       include: { meals: { orderBy: { position: "asc" }, include: { items: true } } },
@@ -93,6 +93,7 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
     }),
     // Dicas da caneta só quando a nutricionista liberou.
     active.glp1TipsShared ? prisma.anamnesis.findUnique({ where: { patientId: active.id }, select: { data: true } }) : null,
+    prisma.mealLog.findFirst({ where: { patientId: active.id }, select: { id: true } }),
   ]);
   const tips = anamnesis ? glp1PatientTips(parseAnamnesis(anamnesis.data)) : null;
   const totals = plan ? planTotals(plan.meals) : null;
@@ -122,7 +123,8 @@ async function Home({ searchParams }: { searchParams: PageProps<"/paciente">["se
 
       {typeof aviso === "string" ? <Alert tone="yellow">{aviso}</Alert> : null}
 
-      <NotificationsBanner role="PATIENT" />
+      {/* Primeiros passos; depois de concluídos ou fechados, volta o aviso de notificações. */}
+      <FirstSteps hasMealLog={Boolean(firstLog)} hasExam={examCount > 0} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <Stat

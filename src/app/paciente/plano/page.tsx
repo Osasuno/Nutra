@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { Printer, UtensilsCrossed } from "lucide-react";
+import { Printer, ShoppingCart, UtensilsCrossed } from "lucide-react";
 import { NoLink } from "@/components/patient/NoLink";
 import { MealPlanView } from "@/components/plans/MealPlanView";
 import { ButtonLink, EmptyState, PageHeader, PageSkeleton } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { getPatientLinks } from "@/lib/dal";
 import { fmtDate } from "@/lib/format";
+import { planRecipes } from "@/lib/plan-foods";
 
 export const metadata: Metadata = { title: "Plano alimentar" };
 
@@ -45,12 +46,17 @@ async function Content() {
         title={plan.title}
         description={`Prescrito por ${active.nutritionist.name} · atualizado em ${fmtDate(plan.updatedAt)}`}
         actions={
-          <ButtonLink href={`/imprimir/plano/${plan.id}`} variant="outline" target="_blank">
-            <Printer className="h-4 w-4" /> Imprimir / PDF
-          </ButtonLink>
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink href="/paciente/plano/compras" variant="outline">
+              <ShoppingCart className="h-4 w-4" /> Lista de compras
+            </ButtonLink>
+            <ButtonLink href={`/imprimir/plano/${plan.id}`} variant="outline" target="_blank">
+              <Printer className="h-4 w-4" /> Imprimir / PDF
+            </ButtonLink>
+          </div>
         }
       />
-      <MealPlanView plan={plan} />
+      <MealPlanView plan={plan} recipes={await planRecipes(plan, active.nutritionistId)} />
     </div>
   );
 }

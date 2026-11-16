@@ -16,7 +16,8 @@ declare global {
   }
 }
 
-type State = "server" | "standalone" | "installed" | "prompt" | "ios" | "android" | "desktop";
+export type InstallState = "server" | "standalone" | "installed" | "prompt" | "ios" | "android" | "desktop";
+type State = InstallState;
 
 function subscribe(onChange: () => void) {
   const standalone = window.matchMedia("(display-mode: standalone)");
@@ -41,7 +42,23 @@ function snapshot(): State {
   return "desktop";
 }
 
-const STEPS: Record<"ios" | "android" | "desktop", React.ReactNode[]> = {
+/** Estado da instalação neste aparelho (usado também nos primeiros passos do paciente). */
+export const useInstallState = () => useSyncExternalStore(subscribe, snapshot, (): State => "server");
+
+/** Abre o convite de instalação do navegador (Chrome, Edge, Android). */
+export async function promptInstall() {
+  const event = window.__nutraInstall;
+  if (!event) return false;
+  await event.prompt();
+  const { outcome } = await event.userChoice;
+  // O convite só pode ser usado uma vez.
+  window.__nutraInstall = null;
+  if (outcome === "accepted") window.__nutraInstalled = true;
+  window.dispatchEvent(new Event("nutra:installable"));
+  return true;
+}
+
+export const INSTALL_STEPS: Record<"ios" | "android" | "desktop", React.ReactNode[]> = {
   ios: [
     <>
       Toque em <strong>Compartilhar</strong> <Share className="inline h-3.5 w-3.5 align-[-2px]" aria-label="ícone de compartilhar" /> na barra do navegador.
@@ -72,7 +89,7 @@ const STEPS: Record<"ios" | "android" | "desktop", React.ReactNode[]> = {
 };
 
 export function InstallAppButton({ className }: { className?: string }) {
-  const state = useSyncExternalStore(subscribe, snapshot, (): State => "server");
+  const state = useInstallState();
   const [open, setOpen] = useState(false);
   if (state === "server" || state === "standalone") return null;
 
@@ -85,14 +102,7 @@ export function InstallAppButton({ className }: { className?: string }) {
   }
 
   async function install() {
-    const event = window.__nutraInstall;
-    if (!event) return setOpen((v) => !v);
-    await event.prompt();
-    const { outcome } = await event.userChoice;
-    // O convite só pode ser usado uma vez.
-    window.__nutraInstall = null;
-    if (outcome === "accepted") window.__nutraInstalled = true;
-    window.dispatchEvent(new Event("nutra:installable"));
+    if (!(await promptInstall())) setOpen((v) => !v);
   }
 
   return (
@@ -110,7 +120,7 @@ export function InstallAppButton({ className }: { className?: string }) {
         <div className="mx-1 mt-1 rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
           <p className="mb-1.5 font-medium text-slate-700">Para ter o Nutra como app:</p>
           <ol className="list-decimal space-y-1 pl-4">
-            {STEPS[state].map((step, i) => (
+            {INSTALL_STEPS[state].map((step, i) => (
               <li key={i}>{step}</li>
             ))}
           </ol>

@@ -1,4 +1,5 @@
 import type { Meal, MealItem, MealPlan } from "@/generated/prisma/client";
+import type { RecipeView } from "@/lib/plan-foods";
 import { fmt } from "@/lib/format";
 import { itemTotals, macroSplit, mealTotals, planTotals } from "@/lib/meal-math";
 import { stripRepeatedGrams } from "@/lib/measures";
@@ -6,8 +7,17 @@ import { parseSubstitutes, substituteMeasureText } from "@/lib/substitutes";
 
 export type PlanWithMeals = MealPlan & { meals: (Meal & { items: MealItem[] })[] };
 
-/** Visualização do plano (paciente e impressão). */
-export function MealPlanView({ plan, showNutrients = true }: { plan: PlanWithMeals; showNutrients?: boolean }) {
+/** Visualização do plano (paciente e impressão). `recipes`: receitas usadas, pelo id do alimento. */
+export function MealPlanView({
+  plan,
+  showNutrients = true,
+  recipes = {},
+}: {
+  plan: PlanWithMeals;
+  showNutrients?: boolean;
+  recipes?: Record<string, RecipeView>;
+}) {
+  const used = Object.entries(recipes);
   const meals = [...plan.meals].sort((a, b) => a.position - b.position);
   const totals = planTotals(meals);
   const split = macroSplit(totals);
@@ -60,6 +70,11 @@ export function MealPlanView({ plan, showNutrients = true }: { plan: PlanWithMea
                           {fmt(item.quantityG, 0)} g
                         </p>
                         {item.notes ? <p className="text-xs italic text-slate-500">{item.notes}</p> : null}
+                        {item.foodId && recipes[item.foodId] ? (
+                          <a href={`#receita-${item.foodId}`} className="no-print text-xs font-medium text-emerald-700 hover:underline">
+                            Ver a receita
+                          </a>
+                        ) : null}
                         {substitutes ? (
                           <ul className="mt-1 space-y-0.5 text-sm text-slate-600">
                             {substitutes.options.map((o, i) => (
@@ -96,6 +111,35 @@ export function MealPlanView({ plan, showNutrients = true }: { plan: PlanWithMea
         <section className="print-break-inside-avoid rounded-xl border border-slate-200 bg-white px-4 py-3">
           <h3 className="mb-1 font-semibold text-slate-900">Orientações gerais</h3>
           <p className="whitespace-pre-wrap text-sm text-slate-600">{plan.notes}</p>
+        </section>
+      ) : null}
+
+      {used.length ? (
+        <section className="space-y-3">
+          <h3 className="font-semibold text-slate-900">Receitas</h3>
+          {used.map(([foodId, r]) => (
+            <article key={foodId} id={`receita-${foodId}`} className="print-break-inside-avoid scroll-mt-20 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <h4 className="font-medium text-slate-900">{r.name}</h4>
+              <p className="text-xs text-slate-500">
+                Rende {r.servings} {r.servings === 1 ? "porção" : "porções"} de cerca de {fmt(r.portionG, 0)} g
+              </p>
+              <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-400">Ingredientes</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-slate-700">
+                {r.ingredients.map((i, n) => (
+                  <li key={n}>
+                    {i.foodName} · {i.householdMeasure ? `${i.householdMeasure} · ` : ""}
+                    {fmt(i.quantityG, 0)} g
+                  </li>
+                ))}
+              </ul>
+              {r.steps ? (
+                <>
+                  <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-400">Modo de preparo</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{r.steps}</p>
+                </>
+              ) : null}
+            </article>
+          ))}
         </section>
       ) : null}
     </div>

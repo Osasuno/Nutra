@@ -34,6 +34,7 @@ model User {
   patientRecords         Patient[]            @relation("PatientUser")
   messages               Message[]
   customFoods            Food[]
+  planTemplates          PlanTemplate[]
   clinicalNotes          ClinicalNote[]
   appointments           Appointment[]        @relation("NutritionistAppointments")
 }
@@ -173,6 +174,9 @@ model Food {
   sodium     Float?
   /// JSON com micronutrientes e demais campos
   extra      String   @default("{}")
+  /// Receita da nutricionista (JSON: porções, peso pronto, ingredientes e modo de preparo).
+  /// Null nos alimentos comuns. Os valores por 100 g acima vêm dos ingredientes.
+  recipe     String?
   createdAt  DateTime @default(now())
 
   @@unique([source, externalId])
@@ -181,6 +185,21 @@ model Food {
 }
 
 /// Medidas caseiras referidas (POF 2008-2009 / IBGE).
+/// Modelo de plano da nutricionista. Refeições e itens em JSON, copiados para o plano ao usar.
+model PlanTemplate {
+  id             String   @id @default(cuid())
+  nutritionistId String
+  nutritionist   User     @relation(fields: [nutritionistId], references: [id], onDelete: Cascade)
+  title          String
+  notes          String?
+  /// JSON: [{ name, time, notes, items: [campos do MealItem] }] (ver src/lib/plan-templates.ts).
+  meals          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([nutritionistId])
+}
+
 model HouseholdMeasure {
   id          Int     @id @default(autoincrement())
   foodName    String
