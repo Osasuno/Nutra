@@ -23,6 +23,7 @@ import { requireNutriPatient } from "@/lib/dal";
 import { ageFrom, fmt, fmtDateTime, fmtRelative } from "@/lib/format";
 import { bmi as calcBmi, classifyBmi, classifyBodyFat, type Sex } from "@/lib/formulas";
 import { glp1Guidance } from "@/lib/glp1";
+import { glp1PatientTips } from "@/lib/glp1-tips";
 import { macroSplit, planTotals } from "@/lib/meal-math";
 import { appointmentInclude, getScheduleSettings, toAppointmentDTO } from "@/lib/appointments";
 import { STATUS_INFO, shortWhen } from "@/lib/schedule";
@@ -201,7 +202,18 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
         />
       </div>
 
-      {glp1 ? <Glp1Panel guidance={glp1} id="glp1" /> : null}
+      {glp1 ? (
+        <Glp1Panel
+          guidance={glp1}
+          id="glp1"
+          share={{
+            patientId: id,
+            shared: patient.glp1TipsShared,
+            hasAccount: Boolean(patient.userId),
+            tips: anamnesisData ? glp1PatientTips(anamnesisData) : null,
+          }}
+        />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

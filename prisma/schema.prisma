@@ -74,6 +74,8 @@ model Patient {
   /// Token do link de convite individual (anulado quando o paciente aceita).
   inviteToken    String?   @unique
   requestMessage String?
+  /// A nutricionista liberou ao paciente as dicas para quem usa caneta (GLP-1).
+  glp1TipsShared Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

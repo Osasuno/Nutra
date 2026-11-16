@@ -2,6 +2,9 @@ import { AlertTriangle, ExternalLink, Syringe } from "lucide-react";
 import { Card } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { GLP1_REFS, GLP1_REVIEWED, type Glp1Group, type Glp1Guidance, type Glp1Item, type Glp1RefKey } from "@/lib/glp1";
+import type { PatientTips } from "@/lib/glp1-tips";
+import { Glp1ShareToggle } from "./Glp1ShareToggle";
+import { Glp1TipsCard } from "./Glp1TipsCard";
 
 const TONE = {
   danger: "border-red-200 bg-red-50 text-red-900",
@@ -66,7 +69,9 @@ export function glp1Summary(g: Glp1Guidance) {
 }
 
 /** Orientações completas para quem usa ou usou caneta (visão geral do paciente). */
-export function Glp1Panel({ guidance: g, id }: { guidance: Glp1Guidance; id?: string }) {
+export type Glp1Share = { patientId: string; shared: boolean; hasAccount: boolean; tips: PatientTips | null };
+
+export function Glp1Panel({ guidance: g, id, share }: { guidance: Glp1Guidance; id?: string; share?: Glp1Share }) {
   const used = new Set<Glp1RefKey>([...g.alerts, ...g.groups.flatMap((gr) => gr.items)].flatMap((i) => i.refs));
   used.add("ms");
   const conditions = g.groups.find((gr) => gr.id === "condicoes");
@@ -85,6 +90,20 @@ export function Glp1Panel({ guidance: g, id }: { guidance: Glp1Guidance; id?: st
           <p className="text-sm text-slate-600">{glp1Summary(g)}</p>
         </div>
       </div>
+
+      {share ? (
+        <div className="space-y-2 border-b border-slate-100 px-4 py-3 sm:px-5">
+          <Glp1ShareToggle patientId={share.patientId} shared={share.shared} hasAccount={share.hasAccount} />
+          {share.tips ? (
+            <details className="text-sm">
+              <summary className="cursor-pointer select-none font-medium text-emerald-700 hover:underline">Ver o que o paciente vê</summary>
+              <div className="mt-3 max-w-xl">
+                <Glp1TipsCard tips={share.tips} open />
+              </div>
+            </details>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="space-y-4 px-4 py-4 sm:px-5">
         {g.alerts.map((a) => (

@@ -13,6 +13,7 @@ const patchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("activate") }),
   z.object({ action: z.literal("regenerateInvite") }),
   z.object({ action: z.literal("update"), data: patientDataSchema }),
+  z.object({ action: z.literal("glp1Tips"), shared: z.boolean() }),
 ]);
 
 export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/patients/[id]">) => {
@@ -58,6 +59,10 @@ export const PATCH = route(async (request: Request, ctx: RouteContext<"/api/pati
       break;
     case "update":
       await prisma.patient.update({ where: { id }, data: body.data });
+      break;
+    case "glp1Tips":
+      // Dicas da caneta na tela do plano do paciente.
+      await prisma.patient.update({ where: { id }, data: { glp1TipsShared: body.shared } });
       break;
   }
   return Response.json({ ok: true });
