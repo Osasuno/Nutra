@@ -7,6 +7,7 @@
 
 import { GLP1_SOURCES, GLP1_USE, type AnamnesisData } from "./anamnesis";
 import { adjustedWeight } from "./formulas";
+import { PROTOCOL_REFS, renalKind } from "./protocol";
 
 export const GLP1_REVIEWED = "13/11/2026";
 
@@ -43,6 +44,8 @@ export const GLP1_REFS = {
     label: "Ministério da Saúde: pedido de análise à Conitec para o SUS (set./2026)",
     url: "https://www.gov.br/saude/pt-br/assuntos/noticias-ms/2026/setembro/ministerio-da-saude-protocola-na-conitec-pedido-de-analise-para-incorporacao-de-canetas-emagrecedoras-no-sus",
   },
+  kdigo: PROTOCOL_REFS.kdigo,
+  kdoqi: PROTOCOL_REFS.kdoqi,
 } as const;
 
 export type Glp1RefKey = keyof typeof GLP1_REFS;
@@ -68,7 +71,7 @@ export type Glp1Guidance = {
   symptoms: string[];
   alerts: Glp1Item[];
   groups: Glp1Group[];
-  /** Faixa de proteína (g/dia) quando há peso registrado. */
+  /** Faixa de proteína (g/dia) quando há peso registrado (null quando a doença renal muda a regra). */
   protein: { min: number; max: number; basisKg: number; basis: "atual" | "ajustado" } | null;
   /** Calorias abaixo das quais a ingestão de micronutrientes fica em risco. */
   kcalFloor: number | null;
@@ -124,7 +127,17 @@ export function glp1Guidance(data: AnamnesisData, ctx: Glp1Context): Glp1Guidanc
   const diabetes = diseases.includes("Diabetes tipo 2") || diseases.includes("Diabetes tipo 1");
   const kidney = diseases.includes("Doença renal");
   const older = ctx.age !== null && ctx.age >= 65;
-  const protein = proteinRange(ctx);
+  const renalStage = kidney ? str(data.renalEstagio) : null;
+  const renal = kidney ? renalKind(renalStage) : null;
+  const range = proteinRange(ctx);
+  // Doença renal: G1–G2 limita a 1,3 g/kg; G3 a G5, diálise, transplante ou estágio desconhecido
+  // seguem a regra renal (ou a equipe), não a faixa da caneta.
+  const protein =
+    range && renal === "early"
+      ? { ...range, max: Math.min(range.max, Math.round(range.basisKg * 1.3)) }
+      : renal && renal !== "early"
+        ? null
+        : range;
   const kcalFloor = ctx.sex === "F" ? 1200 : ctx.sex === "M" ? 1800 : null;
 
   const alerts: Glp1Item[] = [];
@@ -161,6 +174,19 @@ export function glp1Guidance(data: AnamnesisData, ctx: Glp1Context): Glp1Guidanc
   const inactive = data.atividadeFisica === "Não";
 
   const nutrition: Glp1Item[] = [];
+  const stage = renalStage ? renalStage.split(" (")[0] : "";
+  const renalText =
+    renal === "advanced"
+      ? ` Com doença renal ${stage}, vale a regra renal, e não a faixa da caneta: 0,8 g/kg por dia (KDIGO 2024)${range ? `, cerca de ${Math.round(range.basisKg * 0.8)} g com o peso ${range.basis}` : ""}.`
+      : renal === "dialysis"
+        ? ` Em diálise, vale a regra renal: 1,0 a 1,2 g/kg por dia (KDOQI 2020)${range ? `, ${Math.round(range.basisKg * 1)} a ${Math.round(range.basisKg * 1.2)} g com o peso ${range.basis}` : ""}.`
+        : renal === "early"
+          ? " Com doença renal G1–G2, evite passar de 1,3 g/kg por dia (KDIGO 2024)."
+          : renal === "transplant"
+            ? " Transplante renal: defina a proteína com a equipe."
+            : renal === "unknown"
+              ? " Há doença renal sem estágio informado: preencha o estágio na anamnese antes de definir a proteína (nos estágios G3 a G5, a meta é 0,8 g/kg por dia, pela KDIGO 2024)."
+              : "";
   nutrition.push({
     id: "proteina",
     title: "Proteína para preservar músculo",
@@ -168,8 +194,12 @@ export function glp1Guidance(data: AnamnesisData, ctx: Glp1Context): Glp1Guidanc
       "Na perda de peso, a meta proposta é de 1,2 a 1,6 g de proteína por kg por dia, sem ficar abaixo de 0,8 g/kg. Em obesidade não há consenso sobre qual peso usar; o peso atual superestima a necessidade." +
       (protein
         ? ` Com o peso ${protein.basis} (${fmt1(protein.basisKg)} kg): ${protein.min} a ${protein.max} g por dia.`
-        : " Registre uma avaliação com peso e altura para ver a faixa em gramas."),
-    refs: ["advisory"],
+        : renal && renal !== "early"
+          ? ""
+          : " Registre uma avaliação com peso e altura para ver a faixa em gramas.") +
+      renalText,
+    refs: renal === "dialysis" ? ["advisory", "kdoqi"] : renal && renal !== "transplant" ? ["advisory", "kdigo"] : ["advisory"],
+    tone: renal && renal !== "early" ? "warn" : undefined,
   });
   if (current) {
     nutrition.push(

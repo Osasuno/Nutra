@@ -11,6 +11,7 @@ import { glp1Guidance } from "@/lib/glp1";
 import { parseExtra } from "@/lib/foods";
 import { ageFrom } from "@/lib/format";
 import { newKey } from "@/lib/keys";
+import { protocolInput } from "@/lib/protocol";
 import { parseSubstitutes } from "@/lib/substitutes";
 
 export default function PlanEditorPage(props: PageProps<"/nutri/pacientes/[id]/plano/[planId]">) {
@@ -35,12 +36,19 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
   ]);
   if (!plan) notFound();
   const age = ageFrom(patient.birthDate);
-  const glp1 = glp1Guidance(parseAnamnesis(anamnesis?.data), {
+  const anamnesisData = parseAnamnesis(anamnesis?.data);
+  const body = {
     sex: patient.sex,
     age,
     weightKg: lastAssessment?.weight ?? null,
     heightCm: lastAssessment?.height ?? null,
-  });
+  };
+  const glp1 = glp1Guidance(anamnesisData, body);
+  const latestEnergy = energy
+    ? { targetKcal: energy.targetKcal, proteinG: energy.proteinG, carbsG: energy.carbsG, fatG: energy.fatG }
+    : null;
+  // Só as condições e medidas que o protocolo usa vão para o navegador (não a anamnese inteira).
+  const protocol = protocolInput(anamnesisData, { ...body, energy: latestEnergy });
 
   // Micronutrientes dos alimentos do plano (TACO e os personalizados desta nutricionista).
   const foodIds = [...new Set(plan.meals.flatMap((m) => m.items.flatMap((i) => (i.foodId ? [i.foodId] : []))))];
@@ -103,11 +111,8 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
       patientSex={patient.sex}
       patientAge={age}
       glp1={glp1}
-      latestEnergy={
-        energy
-          ? { targetKcal: energy.targetKcal, proteinG: energy.proteinG, carbsG: energy.carbsG, fatG: energy.fatG }
-          : null
-      }
+      protocolInput={protocol}
+      latestEnergy={latestEnergy}
     />
   );
 }

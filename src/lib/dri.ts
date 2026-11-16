@@ -1,7 +1,8 @@
 // Recomendações diárias (DRI, National Academies) para os micronutrientes que a TACO traz.
 // RDA quando existe; AI (ingestão adequada) para potássio, manganês e fibras. UL é o limite
 // máximo tolerável. Potássio e sódio seguem a revisão de 2019 (sódio: AI e CDRR, o valor
-// acima do qual reduzir diminui o risco de doença crônica). Não considera gestação/lactação.
+// acima do qual reduzir diminui o risco de doença crônica). Gestação e lactação têm tabela
+// própria (PREGNANCY e LACTATION, abaixo).
 // Faixas: 1–3, 4–8, 9–13, 14–18, 19–30, 31–50, 51–70 e 71+ anos.
 
 type Stages = readonly [number, number, number, number, number, number, number, number];
@@ -132,8 +133,61 @@ export function ageStage(age: number | null): number | null {
   return 7;
 }
 
+type Trio = readonly [number, number, number];
+type LifeRow = { value: Trio; ul?: Trio };
+
+// Gestação e lactação, faixas 14–18, 19–30 e 31–50 anos (tabelas-resumo da DRI; potássio e
+// sódio da revisão de 2019). UL igual ao da mulher da mesma idade, exceto o fósforo na gestação.
+const PREGNANCY: Record<string, LifeRow> = {
+  calcio_mg: { value: [1300, 1000, 1000], ul: [3000, 2500, 2500] },
+  ferro_mg: { value: [27, 27, 27], ul: [45, 45, 45] },
+  magnesio_mg: { value: [400, 350, 360] },
+  fosforo_mg: { value: [1250, 700, 700], ul: [3500, 3500, 3500] },
+  potassio_mg: { value: [2600, 2900, 2900] },
+  zinco_mg: { value: [12, 11, 11], ul: [34, 40, 40] },
+  cobre_mg: { value: [1, 1, 1], ul: [8, 10, 10] },
+  manganes_mg: { value: [2, 2, 2], ul: [9, 11, 11] },
+  sodium: { value: [2300, 2300, 2300] },
+  RAE_mcg: { value: [750, 770, 770], ul: [2800, 3000, 3000] },
+  tiamina_mg: { value: [1.4, 1.4, 1.4] },
+  riboflavina_mg: { value: [1.4, 1.4, 1.4] },
+  niacina_mg: { value: [18, 18, 18] },
+  piridoxina_mg: { value: [1.9, 1.9, 1.9], ul: [80, 100, 100] },
+  vitamina_c_mg: { value: [80, 85, 85], ul: [1800, 2000, 2000] },
+  fiber: { value: [28, 28, 28] },
+};
+
+const LACTATION: Record<string, LifeRow> = {
+  calcio_mg: { value: [1300, 1000, 1000], ul: [3000, 2500, 2500] },
+  ferro_mg: { value: [10, 9, 9], ul: [45, 45, 45] },
+  magnesio_mg: { value: [360, 310, 320] },
+  fosforo_mg: { value: [1250, 700, 700], ul: [4000, 4000, 4000] },
+  potassio_mg: { value: [2500, 2800, 2800] },
+  zinco_mg: { value: [13, 12, 12], ul: [34, 40, 40] },
+  cobre_mg: { value: [1.3, 1.3, 1.3], ul: [8, 10, 10] },
+  manganes_mg: { value: [2.6, 2.6, 2.6], ul: [9, 11, 11] },
+  sodium: { value: [2300, 2300, 2300] },
+  RAE_mcg: { value: [1200, 1300, 1300], ul: [2800, 3000, 3000] },
+  tiamina_mg: { value: [1.4, 1.4, 1.4] },
+  riboflavina_mg: { value: [1.6, 1.6, 1.6] },
+  niacina_mg: { value: [17, 17, 17] },
+  piridoxina_mg: { value: [2, 2, 2], ul: [80, 100, 100] },
+  vitamina_c_mg: { value: [115, 120, 120], ul: [1800, 2000, 2000] },
+  fiber: { value: [29, 29, 29] },
+};
+
+export type LifeStage = "pregnancy" | "lactation" | null;
+
 /** Valor de referência e limite máximo para o paciente (null sem sexo ou idade). */
-export function referenceFor(def: MicroDef, sex: string | null, age: number | null) {
+export function referenceFor(def: MicroDef, sex: string | null, age: number | null, life: LifeStage = null) {
+  if (life && sex !== "M" && def.kind && age !== null && Number.isFinite(age)) {
+    const row = (life === "pregnancy" ? PREGNANCY : LACTATION)[def.key];
+    if (row) {
+      // Fora de 14 a 50 anos, usa a faixa mais próxima.
+      const i = age <= 18 ? 0 : age <= 30 ? 1 : 2;
+      return { value: row.value[i], ul: row.ul?.[i] ?? null };
+    }
+  }
   const stage = ageStage(age);
   const values = sex === "M" ? def.M : sex === "F" ? def.F : undefined;
   if (stage === null || !values || !def.kind) return null;

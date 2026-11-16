@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowLeftRight,
   ArrowUp,
@@ -33,13 +34,14 @@ import { SOURCE_LABEL, type FoodResult, type FoodSource } from "@/lib/food-types
 import { fmt, fmtDateTime } from "@/lib/format";
 import { newKey } from "@/lib/keys";
 import { itemTotals, macroSplit, mealTotals, planTotals, sumTotals, type NutrientTotals } from "@/lib/meal-math";
-import { Glp1PlanCard } from "@/components/glp1/Glp1PlanCard";
 import { hasMicros } from "@/lib/dri";
-import { glp1PlanChecks, type Glp1Guidance } from "@/lib/glp1";
+import type { Glp1Guidance } from "@/lib/glp1";
+import { computeProtocol, protocolChecks, restrictionHits, type Protocol, type ProtocolInput } from "@/lib/protocol";
 import { measureGrams, measureText, qtyForGrams, type ItemMeasure } from "@/lib/measures";
 import { recalcSubstitutes, substituteMeasureText, type Per100, type SubstituteSet } from "@/lib/substitutes";
 import { FoodPickerModal, type PickedFood } from "./FoodPickerModal";
 import { MicronutrientsCard } from "./MicronutrientsCard";
+import { ProtocolCard } from "./ProtocolCard";
 import { SubstitutesModal } from "./SubstitutesModal";
 
 export type EditorItem = {
@@ -149,6 +151,7 @@ export function MealPlanEditor({
   patientSex,
   patientAge,
   glp1,
+  protocolInput,
 }: {
   planId: string;
   patientId: string;
@@ -161,6 +164,8 @@ export function MealPlanEditor({
   patientAge: number | null;
   /** Orientações para quem usa caneta (null quando a anamnese não indica uso). */
   glp1: Glp1Guidance | null;
+  /** Condições da anamnese e medidas que formam o protocolo (metas, referências e avisos). */
+  protocolInput: ProtocolInput;
 }) {
   const router = useRouter();
   const [plan, setPlan] = useState<EditorPlan>(initial);
@@ -175,6 +180,8 @@ export function MealPlanEditor({
   // Celular e telas médias: os índices (total, metas, micronutrientes) abrem por cima, sem rolar até o fim.
   const [showIndices, setShowIndices] = useState(false);
   const [removed, setRemoved] = useState<Removed | null>(null);
+  // Peso de referência das metas em g/kg (null: automático pelo IMC).
+  const [basisPref, setBasisPref] = useState<"atual" | "ajustado" | null>(null);
   // Versão atual do plano para o salvar (e para saber se mudou durante o envio).
   const planRef = useRef(plan);
   useEffect(() => {
@@ -369,12 +376,37 @@ export function MealPlanEditor({
     ? plan.meals.find((m) => m.key === subsFor.mealKey)?.items.find((i) => i.key === subsFor.itemKey) ?? null
     : null;
   const allItems = useMemo(() => plan.meals.flatMap((m) => m.items), [plan.meals]);
+  // As metas atuais do plano são a base: as calorias ficam e só a proteína fora da faixa muda.
+  const { targetKcal, targetProtein, targetCarbs, targetFat } = plan;
+  const protocol = useMemo(
+    () =>
+      computeProtocol(protocolInput, {
+        basis: basisPref,
+        plan: { kcal: targetKcal, protein: targetProtein, carbs: targetCarbs, fat: targetFat },
+      }),
+    [protocolInput, basisPref, targetKcal, targetProtein, targetCarbs, targetFat],
+  );
+  const hits = useMemo(() => restrictionHits(protocol.restrictions, plan.meals), [protocol.restrictions, plan.meals]);
+  const showProtocol = protocol.conditions.length > 0 || glp1 !== null;
+  const protocolWarning =
+    showProtocol &&
+    (protocolChecks(protocol, totals).some((c) => c.ok === false && !c.soft) ||
+      hits.length > 0 ||
+      Boolean(protocol.protein?.blocked) ||
+      (glp1?.alerts.length ?? 0) > 0);
   const indexCards = (
     <>
       <TotalsCard totals={totals} split={split} plan={plan} />
-      {glp1 ? <Glp1PlanCard guidance={glp1} totals={totals} patientId={patientId} /> : null}
-      <TargetsCard plan={plan} latestEnergy={latestEnergy} onChange={change} />
-      <MicronutrientsCard items={allItems} totals={totals} sex={patientSex} age={patientAge} />
+      {showProtocol ? <ProtocolCard protocol={protocol} glp1={glp1} totals={totals} hits={hits} patientId={patientId} /> : null}
+      <TargetsCard
+        plan={plan}
+        latestEnergy={latestEnergy}
+        onChange={change}
+        protocol={protocol}
+        weightKg={protocolInput.weightKg}
+        onBasis={setBasisPref}
+      />
+      <MicronutrientsCard items={allItems} totals={totals} sex={patientSex} age={patientAge} adjust={protocol.micro} />
     </>
   );
 
@@ -480,7 +512,7 @@ export function MealPlanEditor({
         removed={removed}
         onUndo={undoRemove}
         onShowIndices={() => setShowIndices(true)}
-        warning={glp1 ? glp1PlanChecks(glp1, totals).some((c) => c.ok === false) || glp1.alerts.length > 0 : false}
+        warning={protocolWarning}
       />
 
       {showIndices ? (
@@ -874,17 +906,115 @@ function SaveBar({
   );
 }
 
+/** Metas pelo protocolo: o que muda, por quê e o botão para usar. */
+function ProtocolTargets({
+  plan,
+  protocol,
+  weightKg,
+  onChange,
+  onBasis,
+}: {
+  plan: EditorPlan;
+  protocol: Protocol;
+  weightKg: number | null;
+  onChange: (fn: (p: EditorPlan) => EditorPlan) => void;
+  onBasis: (basis: "atual" | "ajustado" | null) => void;
+}) {
+  const pr = protocol.protein;
+  if (!pr) return null;
+  if (pr.blocked) {
+    return (
+      <p className="mb-3 flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {pr.blocked}
+      </p>
+    );
+  }
+  const t = protocol.targets;
+  const inUse =
+    t !== null &&
+    plan.targetProtein === t.protein &&
+    (t.kcal === null || (plan.targetKcal === t.kcal && plan.targetCarbs === t.carbs && plan.targetFat === t.fat));
+  const basis = pr.basis;
+  const other = basis?.kind === "ajustado" ? "atual" : "ajustado";
+  return (
+    <div className="mb-3 rounded-lg border border-sky-100 bg-sky-50/60 p-3 text-xs">
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium text-sky-900">Pelo protocolo</p>
+        {t ? (
+          inUse ? (
+            <span className="inline-flex shrink-0 items-center gap-1 font-medium text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Em uso
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="shrink-0 font-medium text-emerald-700 hover:underline"
+              onClick={() =>
+                onChange((p) => ({
+                  ...p,
+                  targetProtein: t.protein,
+                  ...(t.kcal !== null ? { targetKcal: t.kcal, targetCarbs: t.carbs, targetFat: t.fat } : {}),
+                }))
+              }
+            >
+              Usar metas do protocolo
+            </button>
+          )
+        ) : null}
+      </div>
+      {t ? (
+        <p className="mt-1 text-slate-800">
+          {t.kcal !== null ? `${fmt(t.kcal, 0)} kcal · ` : ""}P <strong>{fmt(t.protein, 0)} g</strong>
+          {t.carbs !== null ? ` · C ${fmt(t.carbs, 0)} g` : ""}
+          {t.fat !== null ? ` · G ${fmt(t.fat, 0)} g` : ""}
+        </p>
+      ) : null}
+      <p className="mt-1 text-slate-600">
+        Proteína: {pr.rules.map((r) => r.text).join("; ")}
+        {pr.lo !== null && pr.hi !== null && pr.lo !== pr.hi ? `, ${pr.lo} a ${pr.hi} g por dia` : pr.lo !== null && pr.lo === pr.hi ? `, ${pr.lo} g por dia` : pr.lo !== null ? `, no mínimo ${pr.lo} g por dia` : pr.hi !== null ? `, até ${pr.hi} g por dia` : ""}.
+        {pr.overridden.length ? ` A regra renal prevalece sobre: ${pr.overridden.join(", ")}.` : ""}
+      </p>
+      {basis ? (
+        <p className="mt-1 text-slate-500">
+          Peso de referência: {basis.kind} ({fmt(basis.kg, 1)} kg
+          {basis.kind === "ajustado" && basis.bmi !== null ? `, IMC ${fmt(basis.bmi, 1)}` : ""}).{" "}
+          {basis.bmi !== null && weightKg ? (
+            <button type="button" className="font-medium text-emerald-700 hover:underline" onClick={() => onBasis(other)}>
+              Usar o peso {other}
+            </button>
+          ) : null}
+        </p>
+      ) : null}
+      {t && t.kcal !== null && !inUse ? (
+        <p className="mt-1 text-slate-500">
+          Calorias {protocol.base === "plano" ? "das metas do plano" : "do último cálculo de energia"}; carboidratos e gorduras
+          reequilibrados para manter as calorias.
+        </p>
+      ) : protocol.base === null ? (
+        <p className="mt-1 text-slate-500">Sem metas de calorias nem cálculo de energia: o protocolo sugere só a proteína.</p>
+      ) : null}
+    </div>
+  );
+}
+
 function TargetsCard({
   plan,
   latestEnergy,
   onChange,
+  protocol,
+  weightKg,
+  onBasis,
 }: {
   plan: EditorPlan;
   latestEnergy: { targetKcal: number; proteinG: number; carbsG: number; fatG: number } | null;
   onChange: (fn: (p: EditorPlan) => EditorPlan) => void;
+  protocol: Protocol;
+  weightKg: number | null;
+  onBasis: (basis: "atual" | "ajustado" | null) => void;
 }) {
   return (
     <Card className="p-4">
+      <ProtocolTargets plan={plan} protocol={protocol} weightKg={weightKg} onChange={onChange} onBasis={onBasis} />
       <div className="mb-3 flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
           <Target className="h-4 w-4 text-emerald-600" /> Metas diárias

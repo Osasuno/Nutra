@@ -98,6 +98,17 @@ export const GLP1_MEDICATIONS = [
   "Dulaglutida (Trulicity)",
   "Outro / não sabe",
 ];
+/** Estágio da doença renal crônica pela TFG (KDIGO). Define a meta de proteína do protocolo. */
+export const RENAL_STAGES = [
+  "G1–G2 (TFG ≥ 60)",
+  "G3a (TFG 45–59)",
+  "G3b (TFG 30–44)",
+  "G4 (TFG 15–29)",
+  "G5 sem diálise (TFG < 15)",
+  "Em diálise",
+  "Transplantado",
+  "Não sei",
+];
 export const GLP1_SOURCES = ["Com prescrição médica, em farmácia", "Manipulado", "Sem prescrição ou origem desconhecida"];
 export const GLP1_SYMPTOMS = [
   "Náusea",
@@ -275,6 +286,14 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
           "Enxaqueca",
           "Nenhuma",
         ],
+      },
+      {
+        id: "renalEstagio",
+        label: "Estágio da doença renal",
+        type: "radio",
+        options: RENAL_STAGES,
+        help: "Pela taxa de filtração glomerular (TFG) do exame. Define a meta de proteína do plano alimentar.",
+        showIf: { field: "doencas", in: ["Doença renal"] },
       },
       { id: "doencasOutras", label: "Outras doenças", type: "text" },
       {
