@@ -4,8 +4,10 @@ import { MealPlanEditor, type EditorPlan } from "@/components/plans/MealPlanEdit
 import { PageSkeleton } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { requireNutriPatient } from "@/lib/dal";
+import { parseAnamnesis } from "@/lib/anamnesis";
 import { hasMicros } from "@/lib/dri";
 import type { FoodSource } from "@/lib/food-types";
+import { glp1Guidance } from "@/lib/glp1";
 import { parseExtra } from "@/lib/foods";
 import { ageFrom } from "@/lib/format";
 import { newKey } from "@/lib/keys";
@@ -22,14 +24,23 @@ export default function PlanEditorPage(props: PageProps<"/nutri/pacientes/[id]/p
 async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/plano/[planId]">["params"] }) {
   const { id, planId } = await params;
   const { user, patient } = await requireNutriPatient(id);
-  const [plan, energy] = await Promise.all([
+  const [plan, energy, anamnesis, lastAssessment] = await Promise.all([
     prisma.mealPlan.findFirst({
       where: { id: planId, patientId: id },
       include: { meals: { orderBy: { position: "asc" }, include: { items: { orderBy: { position: "asc" } } } } },
     }),
     prisma.energyCalculation.findFirst({ where: { patientId: id }, orderBy: { createdAt: "desc" } }),
+    prisma.anamnesis.findUnique({ where: { patientId: id }, select: { data: true } }),
+    prisma.assessment.findFirst({ where: { patientId: id }, orderBy: { date: "desc" }, select: { weight: true, height: true } }),
   ]);
   if (!plan) notFound();
+  const age = ageFrom(patient.birthDate);
+  const glp1 = glp1Guidance(parseAnamnesis(anamnesis?.data), {
+    sex: patient.sex,
+    age,
+    weightKg: lastAssessment?.weight ?? null,
+    heightCm: lastAssessment?.height ?? null,
+  });
 
   // Micronutrientes dos alimentos do plano (TACO e os personalizados desta nutricionista).
   const foodIds = [...new Set(plan.meals.flatMap((m) => m.items.flatMap((i) => (i.foodId ? [i.foodId] : []))))];
@@ -90,7 +101,8 @@ async function Content({ params }: { params: PageProps<"/nutri/pacientes/[id]/pl
       initialActive={plan.isActive}
       updatedAt={plan.updatedAt.toISOString()}
       patientSex={patient.sex}
-      patientAge={ageFrom(patient.birthDate)}
+      patientAge={age}
+      glp1={glp1}
       latestEnergy={
         energy
           ? { targetKcal: energy.targetKcal, proteinG: energy.proteinG, carbsG: energy.carbsG, fatG: energy.fatG }

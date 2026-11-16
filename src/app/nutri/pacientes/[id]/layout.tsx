@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Mail, Phone, Target } from "lucide-react";
+import { ArrowLeft, CalendarDays, Mail, Phone, Syringe, Target } from "lucide-react";
 import { PatientTabs } from "@/components/nutri/PatientTabs";
 import { Avatar, Badge, Skeleton } from "@/components/ui";
+import { GLP1_USE, parseAnamnesis } from "@/lib/anamnesis";
 import { nextAppointmentsByPatient } from "@/lib/appointments";
 import { requireNutriPatient } from "@/lib/dal";
+import { prisma } from "@/lib/db";
 import { ageFrom, sexLabel } from "@/lib/format";
 import { shortWhen } from "@/lib/schedule";
 import { now } from "@/lib/time";
@@ -33,7 +35,12 @@ export default function PatientLayout({ children, params }: LayoutProps<"/nutri/
 async function PatientHeader({ params }: { params: LayoutProps<"/nutri/pacientes/[id]">["params"] }) {
   const { id } = await params;
   const { patient } = await requireNutriPatient(id);
-  const next = (await nextAppointmentsByPatient([patient.id], new Date(now()))).get(patient.id);
+  const [nextMap, anamnesis] = await Promise.all([
+    nextAppointmentsByPatient([patient.id], new Date(now())),
+    prisma.anamnesis.findUnique({ where: { patientId: patient.id }, select: { data: true } }),
+  ]);
+  const next = nextMap.get(patient.id);
+  const glp1Use = parseAnamnesis(anamnesis?.data).glp1Uso;
   const age = ageFrom(patient.birthDate);
   const digits = patient.phone?.replace(/\D/g, "") ?? "";
   const whatsapp = digits ? `https://wa.me/${digits.length <= 11 ? `55${digits}` : digits}` : null;
@@ -49,6 +56,13 @@ async function PatientHeader({ params }: { params: LayoutProps<"/nutri/pacientes
             {patient.status === "ARCHIVED" ? <Badge>Arquivado</Badge> : null}
             {patient.status === "PENDING" ? <Badge tone="yellow">Solicitação pendente</Badge> : null}
             {!patient.userId ? <Badge tone="blue">Sem conta (convite pendente)</Badge> : null}
+            {glp1Use === GLP1_USE[1] ? (
+              <Link href={`/nutri/pacientes/${patient.id}#glp1`} className="no-print">
+                <Badge tone="purple">
+                  <Syringe className="mr-1 inline h-3 w-3" /> Usa caneta GLP-1
+                </Badge>
+              </Link>
+            ) : null}
           </div>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
             <span>

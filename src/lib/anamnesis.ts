@@ -88,6 +88,29 @@ export const COMMON_EXAMS = [
   "Cortisol",
 ];
 
+/** Uso de caneta (agonistas de GLP-1 / tirzepatida). A ordem importa: [1] = uso atual. */
+export const GLP1_USE = ["Não", "Sim, uso atualmente", "Já usei e parei"];
+export const GLP1_MEDICATIONS = [
+  "Semaglutida injetável (Ozempic, Wegovy e similares)",
+  "Semaglutida oral (comprimido)",
+  "Tirzepatida (Mounjaro)",
+  "Liraglutida (Saxenda, Victoza e similares)",
+  "Dulaglutida (Trulicity)",
+  "Outro / não sabe",
+];
+export const GLP1_SOURCES = ["Com prescrição médica, em farmácia", "Manipulado", "Sem prescrição ou origem desconhecida"];
+export const GLP1_SYMPTOMS = [
+  "Náusea",
+  "Vômitos",
+  "Diarreia",
+  "Constipação (intestino preso)",
+  "Refluxo / azia",
+  "Come muito pouco / saciedade rápida",
+  "Tontura ao levantar",
+  "Dor abdominal forte",
+  "Sem sintomas",
+];
+
 export const MEAL_NAMES = [
   "Café da manhã",
   "Lanche da manhã",
@@ -296,6 +319,45 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
           { id: "horario", label: "Horário / frequência" },
           { id: "motivo", label: "Para quê?" },
         ],
+      },
+      // Canetas (agonistas de GLP-1 e tirzepatida). Com uso atual, a visão geral e o plano
+      // alimentar mostram as orientações de src/lib/glp1.ts.
+      {
+        id: "glp1Uso",
+        label: "Usa caneta para emagrecer ou para diabetes (GLP-1)?",
+        type: "radio",
+        options: GLP1_USE,
+        help: "Semaglutida (Ozempic, Wegovy), tirzepatida (Mounjaro), liraglutida (Saxenda, Victoza), dulaglutida (Trulicity) e similares. Com uso atual, a visão geral e o plano alimentar mostram as orientações para quem usa.",
+      },
+      {
+        id: "glp1Medicamento",
+        label: "Qual medicamento?",
+        type: "select",
+        options: GLP1_MEDICATIONS,
+        showIf: { field: "glp1Uso", in: [GLP1_USE[1], GLP1_USE[2]] },
+      },
+      {
+        id: "glp1Dose",
+        label: "Dose atual",
+        type: "text",
+        placeholder: "Ex.: 0,5 mg por semana",
+        showIf: { field: "glp1Uso", in: [GLP1_USE[1]] },
+      },
+      { id: "glp1Inicio", label: "Início do uso", type: "date", showIf: { field: "glp1Uso", in: [GLP1_USE[1], GLP1_USE[2]] } },
+      {
+        id: "glp1Origem",
+        label: "Como obtém o medicamento?",
+        type: "radio",
+        options: GLP1_SOURCES,
+        showIf: { field: "glp1Uso", in: [GLP1_USE[1]] },
+      },
+      {
+        id: "glp1Sintomas",
+        label: "Sintomas desde que começou",
+        type: "checkboxes",
+        wide: true,
+        options: GLP1_SYMPTOMS,
+        showIf: { field: "glp1Uso", in: [GLP1_USE[1]] },
       },
       {
         id: "suplementos",

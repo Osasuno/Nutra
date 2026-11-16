@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowLeftRight,
   ArrowUp,
+  ChartColumn,
   CheckCircle2,
   Copy,
   CopyPlus,
@@ -32,7 +33,9 @@ import { SOURCE_LABEL, type FoodResult, type FoodSource } from "@/lib/food-types
 import { fmt, fmtDateTime } from "@/lib/format";
 import { newKey } from "@/lib/keys";
 import { itemTotals, macroSplit, mealTotals, planTotals, sumTotals, type NutrientTotals } from "@/lib/meal-math";
+import { Glp1PlanCard } from "@/components/glp1/Glp1PlanCard";
 import { hasMicros } from "@/lib/dri";
+import { glp1PlanChecks, type Glp1Guidance } from "@/lib/glp1";
 import { measureGrams, measureText, qtyForGrams, type ItemMeasure } from "@/lib/measures";
 import { recalcSubstitutes, substituteMeasureText, type Per100, type SubstituteSet } from "@/lib/substitutes";
 import { FoodPickerModal, type PickedFood } from "./FoodPickerModal";
@@ -145,6 +148,7 @@ export function MealPlanEditor({
   updatedAt,
   patientSex,
   patientAge,
+  glp1,
 }: {
   planId: string;
   patientId: string;
@@ -155,6 +159,8 @@ export function MealPlanEditor({
   /** Para comparar os micronutrientes com a recomendação (DRI). */
   patientSex: string | null;
   patientAge: number | null;
+  /** Orientações para quem usa caneta (null quando a anamnese não indica uso). */
+  glp1: Glp1Guidance | null;
 }) {
   const router = useRouter();
   const [plan, setPlan] = useState<EditorPlan>(initial);
@@ -166,6 +172,8 @@ export function MealPlanEditor({
   const [pickerMeal, setPickerMeal] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ mealKey: string; itemKey: string } | null>(null);
   const [subsFor, setSubsFor] = useState<{ mealKey: string; itemKey: string } | null>(null);
+  // Celular e telas médias: os índices (total, metas, micronutrientes) abrem por cima, sem rolar até o fim.
+  const [showIndices, setShowIndices] = useState(false);
   const [removed, setRemoved] = useState<Removed | null>(null);
   // Versão atual do plano para o salvar (e para saber se mudou durante o envio).
   const planRef = useRef(plan);
@@ -361,6 +369,14 @@ export function MealPlanEditor({
     ? plan.meals.find((m) => m.key === subsFor.mealKey)?.items.find((i) => i.key === subsFor.itemKey) ?? null
     : null;
   const allItems = useMemo(() => plan.meals.flatMap((m) => m.items), [plan.meals]);
+  const indexCards = (
+    <>
+      <TotalsCard totals={totals} split={split} plan={plan} />
+      {glp1 ? <Glp1PlanCard guidance={glp1} totals={totals} patientId={patientId} /> : null}
+      <TargetsCard plan={plan} latestEnergy={latestEnergy} onChange={change} />
+      <MicronutrientsCard items={allItems} totals={totals} sex={patientSex} age={patientAge} />
+    </>
+  );
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -445,11 +461,10 @@ export function MealPlanEditor({
         </Card>
       </div>
 
-      {/* Fixa ao lado no computador; rola por dentro quando passa da altura da tela. */}
-      <div className="space-y-4 xl:sticky xl:top-20 xl:max-h-[calc(100dvh-10rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain xl:pb-1">
-        <TotalsCard totals={totals} split={split} plan={plan} />
-        <TargetsCard plan={plan} latestEnergy={latestEnergy} onChange={change} />
-        <MicronutrientsCard items={allItems} totals={totals} sex={patientSex} age={patientAge} />
+      {/* Computador: coluna fixa ao lado, que rola por dentro. Telas menores: botão "Índices"
+          na barra de baixo abre os mesmos quadros por cima do plano. */}
+      <div className="hidden space-y-4 xl:sticky xl:top-20 xl:block xl:max-h-[calc(100dvh-10rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain xl:pb-1">
+        {indexCards}
       </div>
 
       {/* Espaço para a barra fixa de salvar não cobrir o fim da página. */}
@@ -464,7 +479,15 @@ export function MealPlanEditor({
         onSave={() => void save()}
         removed={removed}
         onUndo={undoRemove}
+        onShowIndices={() => setShowIndices(true)}
+        warning={glp1 ? glp1PlanChecks(glp1, totals).some((c) => c.ok === false) || glp1.alerts.length > 0 : false}
       />
+
+      {showIndices ? (
+        <Modal title="Índices do plano" onClose={() => setShowIndices(false)} size="lg">
+          <div className="space-y-4">{indexCards}</div>
+        </Modal>
+      ) : null}
 
       {pickerMeal ? (
         <FoodPickerModal
@@ -785,6 +808,8 @@ function SaveBar({
   onSave,
   removed,
   onUndo,
+  onShowIndices,
+  warning,
 }: {
   totals: NutrientTotals;
   targetKcal: number | null;
@@ -794,6 +819,9 @@ function SaveBar({
   onSave: () => void;
   removed: Removed | null;
   onUndo: () => void;
+  onShowIndices: () => void;
+  /** Ponto de aviso no botão (ex.: o plano não confere com as orientações da caneta). */
+  warning: boolean;
 }) {
   const pct = targetKcal ? Math.round((totals.kcal / targetKcal) * 100) : null;
   return (
@@ -822,10 +850,21 @@ function SaveBar({
               </span>
             </p>
             <p className="truncate text-xs text-slate-500">
-              {saving ? "Salvando..." : dirty ? "Alterações não salvas" : `Salvo em ${fmtDateTime(lastSaved)}`}
+              {/* Celular: macros e estado curto numa linha. A partir de sm, o texto completo. */}
+              <span className="sm:hidden">
+                P {fmt(totals.protein, 0)} · C {fmt(totals.carbs, 0)} · G {fmt(totals.fat, 0)} ·{" "}
+                {saving ? "Salvando..." : dirty ? "Não salvo" : `Salvo ${fmtDateTime(lastSaved).split(", ")[1] ?? ""}`}
+              </span>
+              <span className="hidden sm:inline">
+                {saving ? "Salvando..." : dirty ? "Alterações não salvas" : `Salvo em ${fmtDateTime(lastSaved)}`}
+              </span>
               <span className="hidden [@media(pointer:fine)]:inline">{dirty && !saving ? " · Ctrl/⌘ + S" : ""}</span>
             </p>
           </div>
+          <Button variant="outline" onClick={onShowIndices} className="relative shrink-0 xl:hidden" aria-label="Ver índices do plano">
+            <ChartColumn className="h-4 w-4" /> Índices
+            {warning ? <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white" aria-hidden /> : null}
+          </Button>
           <Button onClick={onSave} disabled={saving || !dirty} className="shrink-0">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {saving ? "Salvando" : "Salvar"}
           </Button>

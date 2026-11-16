@@ -14,6 +14,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { EvolutionChart } from "@/components/charts/EvolutionChart";
+import { Glp1Panel } from "@/components/glp1/Glp1Panel";
 import { NoteForm } from "@/components/nutri/NoteForm";
 import { Badge, Card, CardBody, CardHeader, EmptyState, PageSkeleton, Stat } from "@/components/ui";
 import { parseAnamnesis, anamnesisProgress, type AnamnesisData } from "@/lib/anamnesis";
@@ -21,6 +22,7 @@ import { prisma } from "@/lib/db";
 import { requireNutriPatient } from "@/lib/dal";
 import { ageFrom, fmt, fmtDateTime, fmtRelative } from "@/lib/format";
 import { bmi as calcBmi, classifyBmi, classifyBodyFat, type Sex } from "@/lib/formulas";
+import { glp1Guidance } from "@/lib/glp1";
 import { macroSplit, planTotals } from "@/lib/meal-math";
 import { appointmentInclude, getScheduleSettings, toAppointmentDTO } from "@/lib/appointments";
 import { STATUS_INFO, shortWhen } from "@/lib/schedule";
@@ -134,6 +136,9 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
   const delta = first && last && assessments.length > 1 ? last.weight - first.weight : null;
   const anamnesisData = anamnesis ? parseAnamnesis(anamnesis.data) : null;
   const progress = anamnesisData ? anamnesisProgress(anamnesisData, { sex: patient.sex, role: "NUTRITIONIST" }) : null;
+  const glp1 = anamnesisData
+    ? glp1Guidance(anamnesisData, { sex: patient.sex, age, weightKg: last?.weight ?? null, heightCm: last?.height ?? null })
+    : null;
   const totals = plan ? planTotals(plan.meals) : null;
   const split = totals ? macroSplit(totals) : null;
   const base = `/nutri/pacientes/${id}`;
@@ -195,6 +200,8 @@ async function Overview({ params }: { params: PageProps<"/nutri/pacientes/[id]">
           tone="red"
         />
       </div>
+
+      {glp1 ? <Glp1Panel guidance={glp1} id="glp1" /> : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

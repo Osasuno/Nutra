@@ -20,7 +20,7 @@ import { api } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
 import { fmtDateTime } from "@/lib/format";
 
-const EXCLUSIVE = new Set(["Nenhuma", "Nenhuma conhecida", "Sem queixas", "Sem alterações"]);
+const EXCLUSIVE = new Set(["Nenhuma", "Nenhuma conhecida", "Sem queixas", "Sem alterações", "Sem sintomas"]);
 
 type Props = {
   patientId: string;
